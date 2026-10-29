@@ -44,9 +44,8 @@ export default Plugin.define({
     const [sidebarWidth, setSidebarWidth] = createSignal(32)
     const summary = () => {
       const group = groupAccounts(state().accounts ?? [])[0]
-      if (!group) return null
-      const values = averageWindows(group.accounts)
-      return { provider: group.provider.toUpperCase(), windows: (["5h", "7d"] as const).flatMap(window => values[window] === null ? [] : [{ label: window, value: `${Math.round(values[window])}%` }]) }
+      const values = group ? averageWindows(group.accounts) : null
+      return { provider: group?.provider.toUpperCase() ?? "—", windows: (["5h", "7d"] as const).map(window => values?.[window] == null ? "—" : `${Math.round(values[window])}%`) }
     }
     const updated = () => {
       const value = state().updatedAt
@@ -102,7 +101,7 @@ export default Plugin.define({
         let sidebar!: BoxRenderable
         onMount(() => setSidebarWidth(sidebar.width))
         return <box ref={sidebar} flexDirection="column" width="100%" paddingTop={1} onSizeChange={function () { setSidebarWidth(this.width) }}>
-        <text flexShrink={0} onMouseUp={() => setExpanded(!expanded())}><strong>{expanded() ? "▼ ⚙️ Usage" : "▶ ⚙️"}</strong><span style={{ fg: ctx.theme.text.muted }}> · </span><Show when={expanded()} fallback={<><span style={{ fg: ctx.theme.text.muted }}>(</span><Show when={summary()}>{item => <>{item().provider}<For each={item().windows}>{(window, index) => <><span style={{ fg: ctx.theme.text.muted }}>{index() ? " · " : "  "}{window.label} </span>{window.value}</>}</For></>}</Show><span style={{ fg: ctx.theme.text.muted }}>)</span></>}><span style={{ fg: ctx.theme.text.muted }}>Updated {updated()}</span></Show><Show when={state().status !== "ready"}><span style={{ fg: ctx.theme.text.muted }}> · {state().status}</span></Show></text>
+        <text flexShrink={0} onMouseUp={() => setExpanded(!expanded())}><Show when={expanded()} fallback={<><strong>⚙️</strong><span style={{ fg: ctx.theme.text.muted }}> | </span>{summary().provider}<For each={summary().windows}>{window => <><span style={{ fg: ctx.theme.text.muted }}> | </span>{window}</>}</For><span style={{ fg: ctx.theme.text.muted }}> |</span></>}><strong>▼ ⚙️ Usage</strong><span style={{ fg: ctx.theme.text.muted }}> · Updated {updated()}</span></Show><Show when={state().status !== "ready"}><span style={{ fg: ctx.theme.text.muted }}> · {state().status}</span></Show></text>
         <Show when={expanded()}>
         <For each={groupAccounts(state().accounts ?? [])}>{(group, groupIndex) => <box width="100%" flexDirection="column" flexShrink={0} paddingTop={groupIndex() ? 2 : 0}>
           <text height={1} flexShrink={0} fg={ctx.theme.text.action.primary.base}><strong>{group.provider.toUpperCase()}</strong></text>

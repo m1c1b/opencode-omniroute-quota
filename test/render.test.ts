@@ -328,16 +328,12 @@ test("style options render real sidebar and details at both widths", async () =>
             await view.mockMouse.click(2, 1)
             await view.renderOnce()
             const collapsed = view.captureCharFrame()
-            expect(collapsed).toContain("▶ ⚙️ ·")
-            expect(collapsed).toMatch(/▶ ⚙️ · \(CODEX  5h 0% · 7d(?: |\n)80%\)/)
+            expect(collapsed.split("\n").find(line => line.includes("⚙️"))!.trim()).toBe("⚙️ | CODEX | 0% | 80% |")
             expect(collapsed).not.toMatch(/\d\d:\d\d:\d\d|Updated/)
-            expect(collapsed.split("\n").find(line => line.includes("▶ ⚙️"))).toContain("(CODEX")
             expect(collapsed).not.toContain("[")
             const headerSpans = view.captureSpans().lines.flatMap(line => line.spans)
             const headerColor = (text: string) => headerSpans.find(span => span.text.includes(text))!.fg.toString()
-            expect(headerColor("(")).toBe(RGBA.fromHex("#777777").toString())
-            expect(headerColor("5h")).toBe(RGBA.fromHex("#777777").toString())
-            expect(headerColor(")")).toBe(RGBA.fromHex("#777777").toString())
+            expect(headerColor("|")).toBe(RGBA.fromHex("#777777").toString())
             expect(headerColor("0%")).toBe(RGBA.fromHex("#ffffff").toString())
             expect(headerColor("CODEX")).toBe(RGBA.fromHex("#ffffff").toString())
             const walk = (node: Renderable): Renderable[] => [node, ...node.getChildren().flatMap(walk)]
@@ -374,30 +370,35 @@ test("collapsed summary uses the first displayed provider without fallback", asy
   const previousKey = process.env.OMNIROUTE_API_KEY
   process.env.OMNIROUTE_API_KEY = "test"
   try {
-    for (const firstQuotas of [{ session: { windowSeconds: 18000, used: 75, total: 100, remainingPercentage: 90 } }, { other: { remainingPercentage: 25 }, weekly: { windowSeconds: 604800, unlimited: true }, session: { windowSeconds: 18000, remaining: 25, total: 100 } }]) {
+    for (const [firstQuotas, expected] of [[{ session: { windowSeconds: 18000, used: 75, total: 100, remainingPercentage: 90 } }, "⚙️ | FIRST | 25% | — |"], [{ weekly: { windowSeconds: 604800, used: 5, total: 100 } }, "⚙️ | FIRST | — | 95% |"], [{ other: { remainingPercentage: 25 }, weekly: { windowSeconds: 604800, unlimited: true }, session: { windowSeconds: 18000, remaining: 25, total: 100 } }, "⚙️ | FIRST | — | — |"]] as const) {
       const providers = [
         { connectionId: "z", provider: "second", quotas: { session: { windowSeconds: 18000, used: 10, total: 100, remainingPercentage: 90 }, weekly: { windowSeconds: 604800, used: 20, total: 100, remainingPercentage: 80 } } },
         { connectionId: "a", provider: "first", quotas: firstQuotas },
       ]
       const server = Bun.serve({ port: 0, fetch: request => new URL(request.url).pathname === "/api/providers" ? Response.json({ connections: [] }) : Response.json({ allowed: true, providers }) })
+      for (const style of ["bar-style", "percents-only-style"]) {
       let sidebar: (input: { name: string }) => unknown = () => null
-      const context = { options: { baseUrl: server.url.href }, theme: { background: { base: "#101010" }, text: { base: "#ffffff", muted: "#777777", action: { primary: { base: "#ff8800" } } } }, ui: { slot: (slot: { append?: string, render: typeof sidebar }) => { if (slot.append === "sidebar.content") sidebar = slot.render; return () => {} } }, keymap: { layer: () => {} } } as unknown as Parameters<typeof plugin.setup>[0]
+      const context = { options: { baseUrl: server.url.href, style }, theme: { background: { base: "#101010" }, text: { base: "#ffffff", muted: "#777777", action: { primary: { base: "#ff8800" } } } }, ui: { slot: (slot: { append?: string, render: typeof sidebar }) => { if (slot.append === "sidebar.content") sidebar = slot.render; return () => {} } }, keymap: { layer: () => {} } } as unknown as Parameters<typeof plugin.setup>[0]
       const stop = await plugin.setup(context)
       try {
         await Bun.sleep(50)
-        const view = await testRender(() => sidebar({ name: "" }) as never, { width: 70, height: 20 })
+        for (const width of [32, 70]) {
+        const view = await testRender(() => sidebar({ name: "" }) as never, { width, height: 20 })
         try {
           await view.renderOnce()
           await view.mockMouse.click(2, 1)
           await view.renderOnce()
           const frame = view.captureCharFrame()
-          expect(frame).toContain("▶ ⚙️")
-          if ("other" in firstQuotas) expect(frame).not.toContain("5h")
-          else expect(frame).toContain("FIRST  5h 25%")
+          expect(frame.split("\n").find(line => line.includes("⚙️"))!.trim()).toBe(expected)
           expect(frame).not.toContain("90%")
           expect(frame).not.toContain("80%")
+          await view.mockMouse.click(2, 1)
+          await view.renderOnce()
         } finally { await view.dispose() }
-      } finally { if (typeof stop === "function") stop(); server.stop(true) }
+        }
+      } finally { if (typeof stop === "function") stop() }
+      }
+      server.stop(true)
     }
   } finally {
     if (previousKey === undefined) delete process.env.OMNIROUTE_API_KEY
