@@ -329,8 +329,9 @@ test("style options render real sidebar and details at both widths", async () =>
             await view.renderOnce()
             const collapsed = view.captureCharFrame()
             expect(collapsed).toContain("▶ OmniRoute ·")
-            expect(collapsed).toContain("(CODEX  5h 0% · 7d 80%")
-            expect(collapsed).toMatch(/\d\d:\d\d:\d\d\)/)
+            expect(collapsed).toContain("(CODEX  5h 0% · 7d 80%)")
+            expect(collapsed).not.toMatch(/\d\d:\d\d:\d\d|Updated/)
+            if (width === 70) expect(collapsed.split("\n").find(line => line.includes("▶ OmniRoute"))).toContain("(CODEX")
             expect(collapsed).not.toContain("[")
             const headerSpans = view.captureSpans().lines.flatMap(line => line.spans)
             const headerColor = (text: string) => headerSpans.find(span => span.text.includes(text))!.fg.toString()
@@ -344,7 +345,7 @@ test("style options render real sidebar and details at both widths", async () =>
             expect(collapsed).not.toContain("/omni-quota")
             await view.mockMouse.click(2, 1)
             await view.renderOnce()
-            expect(view.captureCharFrame()).toContain("CODEX")
+            expect(view.captureCharFrame()).toMatch(/▼ OmniRoute · Updated \d\d:\d\d:\d\d/)
           } finally { await view.dispose() }
         }
         const detail = await testRender(() => panel({ name: "omni-quota" }) as never, { width: 70, height: 35 })
