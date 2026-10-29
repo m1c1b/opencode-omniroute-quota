@@ -41,18 +41,7 @@ Use a `file://` URL pointing to the absolute path of the checkout instead of the
 
 ## Options
 
-Click the OmniRoute sidebar header to collapse or expand the whole section. It starts expanded.
-When collapsed, the header shows remaining percentages for 5h and 7d windows in the first displayed provider group. Missing windows appear as —, and long provider names are truncated to retain the percentages.
-When expanded, the header shows the last successful plugin fetch time, not the freshness of the server's upstream data. A stale or unavailable status remains visible after a failed fetch.
-For each window, the percentage is `(Σtotal - Σused) / Σtotal * 100`, clamped to 0–100. It sums matching quotas across accounts, not their percentages.
-Only finite actual `used` and `total` values with `total > 0` qualify; unlimited quotas are excluded. The header never derives usage from `remaining` or `remainingPercentage`. Antigravity uses aggregate groups with explicit matching durations only.
-The header marks stale or unavailable data; windows without eligible quotas are omitted without falling back to another provider. Individual account displays still use the reported remaining percentage when available.
-
-The default `bar-style` shows each account's quota windows as shaded bars, with
-labels on the left and percentages on the right. A missing 5h window is hidden;
-a missing 7d window shows `—` and an empty bar. Unknown values show `?`, and unlimited quotas show `∞`. Antigravity
-groups use their actual model and window labels. Long labels may be shortened in
-narrow sidebars. Bars use the [ascii-bar Shaded character set](https://github.com/tbremer/ascii-bar).
+Click `⚙️ Quota` to expand or collapse the section. The collapsed view summarizes the first provider; the expanded view shows account quotas and the last successful fetch time. Unknown values show `?`, and unlimited quotas show `∞`.
 
 ### Sidebar styles
 
@@ -122,13 +111,7 @@ An empty or unresolved key, or an empty base URL, produces `unavailable` without
 
 Open a session and its sidebar. Run `/omni-quota` to open the details panel, or `/omni-quota-refresh` to refresh the cache. Both commands are also available in the command palette. Polling is automatic; requests do not overlap.
 
-The status is `loading` while the first request is pending, `ready` when data is available, `unavailable` when no data is available, or `stale` when a request fails after a successful update. Reset times use the local time zone. Account IDs are shortened to eight characters.
-
-The sidebar groups accounts by provider. It shows separate five-hour and seven-day windows when present. Other quotas show a summary and the minimum known remaining percentage. `∞` means all quotas are unlimited; `?` means the remainder is unknown. A mixed known and unknown summary includes `+ ?`.
-
-For AGY, the sidebar shows API aggregates by group and window when available. These are OmniRoute values, not plugin-calculated model minima. Shared pools are not inferred from model names. The details panel retains individual quotas.
-
-The usage endpoint reads the OmniRoute cache, whose age is unknown. The panel time records when the plugin received the response. Accounts without cached quotas are absent. Percentages are raw provider values without thresholds or reserves and do not guarantee route availability. JSON responses may differ from `@@om-usage`, which accounts for thresholds. If a request returns HTTP 401 or 403, check the key and OmniRoute's `allowUsageCommand` setting.
+The displayed fetch time is not the age of OmniRoute's upstream data. Quotas do not guarantee route availability. If a request returns HTTP 401 or 403, check the key and OmniRoute's `allowUsageCommand` setting.
 
 ## Security and privacy
 
