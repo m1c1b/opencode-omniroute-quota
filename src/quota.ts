@@ -30,13 +30,23 @@ export function windowType(quota: Quota): "5h" | "7d" | null {
   return null
 }
 
+function eligibleWindow(account: Account, quota: Quota, window: "5h" | "7d"): boolean {
+  if (account.provider === "agy" && (!quota.quotaAggregate || quota.windowSeconds == null)) return false
+  if (windowType(quota) !== window || quota.unlimited) return false
+  return quota.used !== null && quota.total !== null && Number.isFinite(quota.used) && Number.isFinite(quota.total) && quota.total > 0
+}
+
 export function averageWindows(accounts: Account[]): { "5h": number | null; "7d": number | null } {
-  const average = (values: number[]) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null
-  const windowAverage = (window: "5h" | "7d") => average(accounts.flatMap(account => {
-    const values = account.quotas.flatMap(quota => (account.provider !== "agy" || (quota.quotaAggregate && quota.windowSeconds != null)) && windowType(quota) === window && !quota.unlimited && quota.remaining !== null && Number.isFinite(quota.remaining) ? [quota.remaining] : [])
-    const result = average(values)
-    return result === null ? [] : [result]
-  }))
+  const windowAverage = (window: "5h" | "7d") => {
+    let used = 0
+    let total = 0
+    for (const account of accounts) for (const quota of account.quotas) {
+      if (!eligibleWindow(account, quota, window)) continue
+      used += quota.used!
+      total += quota.total!
+    }
+    return total > 0 ? Math.max(0, Math.min(100, (total - used) / total * 100)) : null
+  }
   return { "5h": windowAverage("5h"), "7d": windowAverage("7d") }
 }
 

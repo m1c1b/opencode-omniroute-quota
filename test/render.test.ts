@@ -155,10 +155,10 @@ test("sidebar left-aligns numbered accounts under full-width provider rules", as
   await Bun.write(`${import.meta.dir}/../dist/render-windows-test.js`, result.outputs[0])
   const plugin: Plugin.Definition = (await import(new URL("../dist/render-windows-test.js", import.meta.url).href)).default
   const providers = [
-    { connectionId: "a", provider: "codex", quotas: { session: { windowSeconds: 604800, remainingPercentage: 80 } } },
+    { connectionId: "a", provider: "codex", quotas: { session: { windowSeconds: 604800, used: 20, total: 100, remainingPercentage: 80 } } },
     { connectionId: "longusername", provider: "codex", quotas: { session: { displayName: "session (5h)", remainingPercentage: 60 }, weekly: { displayName: "weekly (7d)", remainingPercentage: 80 } } },
     { connectionId: "c", provider: "codex", quotas: { session: { windowSeconds: 18000 }, weekly: { unlimited: true } } },
-    { connectionId: "zero", provider: "codex", quotas: { session: { windowSeconds: 18000, remainingPercentage: 0 } } },
+    { connectionId: "zero", provider: "codex", quotas: { session: { windowSeconds: 18000, used: 100, total: 100, remainingPercentage: 0 } } },
     { connectionId: "d", provider: "agy", quotas: { model: { remainingPercentage: 40 }, gemini_weekly: { quotaGroupId: "gemini", quotaAggregate: true, window: "weekly", remainingPercentage: 25 }, gemini_session: { quotaGroupId: "gemini", quotaAggregate: true, window: "session", unlimited: true }, claude_gpt_weekly: { quotaGroupId: "claude_gpt", quotaAggregate: true, window: "weekly" } } },
   ]
   const server = Bun.serve({ port: 0, fetch: request => new URL(request.url).pathname === "/api/providers" ? Response.json({ connections: providers.map(p => ({ id: p.connectionId, email: `${p.connectionId}@example.test` })) }) : Response.json({ allowed: true, providers }) })
@@ -251,12 +251,12 @@ test("style options render real sidebar and details at both widths", async () =>
   await Bun.write(file, result.outputs[0])
   const plugin: Plugin.Definition = (await import(new URL("../dist/render-styles-test.js", import.meta.url).href)).default
   const providers = [
-    { connectionId: "longaccountnameexample", provider: "codex", quotas: { weekly: { windowSeconds: 604800, remainingPercentage: 80 } } },
+    { connectionId: "longaccountnameexample", provider: "codex", quotas: { weekly: { windowSeconds: 604800, used: 20, total: 100, remainingPercentage: 80 } } },
     { connectionId: "b", provider: "codex", quotas: { session: { windowSeconds: 18000 }, weekly: { windowSeconds: 604800, unlimited: true } } },
     { connectionId: "c", provider: "agy", quotas: { gemini_weekly: { quotaGroupId: "gemini", quotaAggregate: true, window: "weekly", remainingPercentage: 25 }, gemini_session: { quotaGroupId: "gemini", quotaAggregate: true, window: "session", unlimited: true }, claude_gpt_session: { quotaGroupId: "claude_gpt", quotaAggregate: true, window: "session", remainingPercentage: 42 } } },
     { connectionId: "d", provider: "other", quotas: { model: { remainingPercentage: 50 } } },
     { connectionId: "e", provider: "weeklyonly", quotas: { weekly: { windowSeconds: 604800, remainingPercentage: 42 } } },
-    { connectionId: "f", provider: "codex", quotas: { session: { windowSeconds: 18000, remainingPercentage: 0 } } },
+    { connectionId: "f", provider: "codex", quotas: { session: { windowSeconds: 18000, used: 100, total: 100, remainingPercentage: 0 } } },
   ]
   const server = Bun.serve({ port: 0, fetch: request => new URL(request.url).pathname === "/api/providers" ? Response.json({ connections: providers.map(p => ({ id: p.connectionId, email: `${p.connectionId}@example.test` })) }) : Response.json({ allowed: true, providers }) })
   const previousKey = process.env.OMNIROUTE_API_KEY
@@ -334,9 +334,9 @@ test("collapsed summary uses the first displayed provider without fallback", asy
   const previousKey = process.env.OMNIROUTE_API_KEY
   process.env.OMNIROUTE_API_KEY = "test"
   try {
-    for (const firstQuotas of [{ session: { windowSeconds: 18000, remainingPercentage: 25 } }, { other: { remainingPercentage: 25 }, weekly: { windowSeconds: 604800, unlimited: true }, session: { windowSeconds: 18000 } }]) {
+    for (const firstQuotas of [{ session: { windowSeconds: 18000, used: 75, total: 100, remainingPercentage: 90 } }, { other: { remainingPercentage: 25 }, weekly: { windowSeconds: 604800, unlimited: true }, session: { windowSeconds: 18000, remaining: 25, total: 100 } }]) {
       const providers = [
-        { connectionId: "z", provider: "second", quotas: { session: { windowSeconds: 18000, remainingPercentage: 90 }, weekly: { windowSeconds: 604800, remainingPercentage: 80 } } },
+        { connectionId: "z", provider: "second", quotas: { session: { windowSeconds: 18000, used: 10, total: 100, remainingPercentage: 90 }, weekly: { windowSeconds: 604800, used: 20, total: 100, remainingPercentage: 80 } } },
         { connectionId: "a", provider: "first", quotas: firstQuotas },
       ]
       const server = Bun.serve({ port: 0, fetch: request => new URL(request.url).pathname === "/api/providers" ? Response.json({ connections: [] }) : Response.json({ allowed: true, providers }) })
