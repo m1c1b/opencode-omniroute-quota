@@ -42,11 +42,10 @@ export default Plugin.define({
     const [state, setState] = createSignal(initial)
     const [expanded, setExpanded] = createSignal(true)
     const [sidebarWidth, setSidebarWidth] = createSignal(32)
-    const summary = () => {
-      const group = groupAccounts(state().accounts ?? [])[0]
-      const values = group ? averageWindows(group.accounts) : null
-      return { provider: group?.provider.toUpperCase() ?? "—", windows: (["5h", "7d"] as const).map(window => values?.[window] == null ? "—" : `${Math.round(values[window])}%`) }
-    }
+    const summaries = () => groupAccounts(state().accounts ?? []).slice(0, 3).map(group => {
+      const values = averageWindows(group.accounts)
+      return { provider: group.provider.toUpperCase(), windows: (["5h", "7d"] as const).map(window => values[window] == null ? "—" : `${Math.round(values[window])}%`) }
+    })
     const updated = () => {
       const value = state().updatedAt
       if (value === null || !Number.isFinite(value)) return "—"
@@ -101,7 +100,10 @@ export default Plugin.define({
         let sidebar!: BoxRenderable
         onMount(() => setSidebarWidth(sidebar.width))
         return <box ref={sidebar} flexDirection="column" width="100%" paddingTop={1} onSizeChange={function () { setSidebarWidth(this.width) }}>
-        <text flexShrink={0} onMouseUp={() => setExpanded(!expanded())}><Show when={expanded()} fallback={<><strong>▶ ⚙️</strong><span style={{ fg: ctx.theme.text.muted }}> | </span>{summary().provider}<For each={summary().windows}>{window => <><span style={{ fg: ctx.theme.text.muted }}> | </span>{window}</>}</For><span style={{ fg: ctx.theme.text.muted }}> |</span></>}><strong>▼ ⚙️ Usage</strong><span style={{ fg: ctx.theme.text.muted }}> · Updated {updated()}</span></Show><Show when={state().status !== "ready"}><span style={{ fg: ctx.theme.text.muted }}> · {state().status}</span></Show></text>
+        <Show when={expanded()} fallback={<box flexDirection="column" flexShrink={0} onMouseUp={() => setExpanded(true)}>
+          <For each={summaries().length ? summaries() : [{ provider: "—", windows: ["—", "—"] }]}>{(summary, index) => <text flexShrink={0} wrapMode="none"><strong>{index() ? "    " : "▶ ⚙️"}</strong><span style={{ fg: ctx.theme.text.muted }}> | </span>{truncate(summary.provider, Math.max(1, sidebarWidth() - 21))}<For each={summary.windows}>{window => <><span style={{ fg: ctx.theme.text.muted }}> | </span>{window}</>}</For><span style={{ fg: ctx.theme.text.muted }}> |</span></text>}</For>
+          <Show when={state().status !== "ready"}><text fg={ctx.theme.text.muted}>· {state().status}</text></Show>
+        </box>}><text flexShrink={0} onMouseUp={() => setExpanded(false)}><strong>▼ ⚙️ Usage</strong><span style={{ fg: ctx.theme.text.muted }}> · Updated {updated()}</span><Show when={state().status !== "ready"}><span style={{ fg: ctx.theme.text.muted }}> · {state().status}</span></Show></text></Show>
         <Show when={expanded()}>
         <For each={groupAccounts(state().accounts ?? [])}>{(group, groupIndex) => <box width="100%" flexDirection="column" flexShrink={0} paddingTop={groupIndex() ? 2 : 0}>
           <text height={1} flexShrink={0} fg={ctx.theme.text.action.primary.base}><strong>{group.provider.toUpperCase()}</strong></text>

@@ -362,7 +362,7 @@ test("style options render real sidebar and details at both widths", async () =>
   }
 })
 
-test("collapsed summary uses the first displayed provider without fallback", async () => {
+test("collapsed summaries use the first three displayed providers independently", async () => {
   const result = await Bun.build({ entrypoints: ["src/tui.tsx"], target: "bun", external: ["@opencode/plugin/tui", "@opentui/solid", "solid-js"], plugins: [createSolidTransformPlugin()] })
   const file = Bun.file(`${import.meta.dir}/../dist/render-first-provider-test.js`)
   await Bun.write(file, result.outputs[0])
@@ -374,6 +374,8 @@ test("collapsed summary uses the first displayed provider without fallback", asy
       const providers = [
         { connectionId: "z", provider: "second", quotas: { session: { windowSeconds: 18000, used: 10, total: 100, remainingPercentage: 90 }, weekly: { windowSeconds: 604800, used: 20, total: 100, remainingPercentage: 80 } } },
         { connectionId: "a", provider: "first", quotas: firstQuotas },
+        { connectionId: "zz", provider: "thirdproviderwithaverylongname", quotas: { weekly: { windowSeconds: 604800, used: 1, total: 10 } } },
+        { connectionId: "zzz", provider: "fourth", quotas: {} },
       ]
       const server = Bun.serve({ port: 0, fetch: request => new URL(request.url).pathname === "/api/providers" ? Response.json({ connections: [] }) : Response.json({ allowed: true, providers }) })
       for (const style of ["bar-style", "percents-only-style"]) {
@@ -390,9 +392,12 @@ test("collapsed summary uses the first displayed provider without fallback", asy
           await view.renderOnce()
           const frame = view.captureCharFrame()
           expect(frame.split("\n").find(line => line.includes("⚙️"))!.trim()).toBe(expected)
-          expect(frame).not.toContain("90%")
-          expect(frame).not.toContain("80%")
-          await view.mockMouse.click(2, 1)
+          expect(frame).toContain("| SECOND | 90% | 80% |")
+          expect(frame).toContain(width === 32 ? "| THIRDPROVI… | — | 90% |" : "| THIRDPROVIDERWITHAVERYLONGNAME | — | 90% |")
+          expect(frame).not.toContain("FOURTH")
+          const walk = (node: Renderable): Renderable[] => [node, ...node.getChildren().flatMap(walk)]
+          for (const node of walk(view.renderer.root)) expect(node.x + node.width).toBeLessThanOrEqual(width)
+          await view.mockMouse.click(7, 2)
           await view.renderOnce()
         } finally { await view.dispose() }
         }
