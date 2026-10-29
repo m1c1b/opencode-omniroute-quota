@@ -20,6 +20,26 @@ export interface Account {
   quotas: Quota[]
 }
 
+export function windowType(quota: Quota): "5h" | "7d" | null {
+  if (quota.windowSeconds === 18000) return "5h"
+  if (quota.windowSeconds === 604800) return "7d"
+  if (quota.windowSeconds != null) return null
+  const name = `${quota.key ?? ""} ${quota.name}`.toLowerCase()
+  if (/\b(weekly|week|7d|7 days?)\b/.test(name)) return "7d"
+  if (/\b(5h|5 hours?)\b/.test(name)) return "5h"
+  return null
+}
+
+export function averageWindows(accounts: Account[]): { "5h": number | null; "7d": number | null } {
+  const average = (values: number[]) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null
+  const windowAverage = (window: "5h" | "7d") => average(accounts.flatMap(account => {
+    const values = account.quotas.flatMap(quota => (account.provider !== "agy" || (quota.quotaAggregate && quota.windowSeconds != null)) && windowType(quota) === window && !quota.unlimited && quota.remaining !== null && Number.isFinite(quota.remaining) ? [quota.remaining] : [])
+    const result = average(values)
+    return result === null ? [] : [result]
+  }))
+  return { "5h": windowAverage("5h"), "7d": windowAverage("7d") }
+}
+
 export function summarizeQuotas(quotas: Quota[]): string {
   if (!quotas.length) return "0 quotas"
   const limited = quotas.filter(quota => !quota.unlimited)

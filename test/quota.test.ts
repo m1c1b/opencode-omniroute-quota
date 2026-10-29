@@ -1,5 +1,17 @@
 import { describe, expect, test } from "bun:test"
-import { fetchQuotas, groupAccounts, parseLabels, parseResponse, summarizeQuotas, type Quota } from "../src/quota"
+import { averageWindows, fetchQuotas, groupAccounts, parseLabels, parseResponse, summarizeQuotas, type Quota } from "../src/quota"
+
+test("window averages weight accounts equally and exclude unknown and unlimited values", () => {
+  const accounts = parseResponse({ allowed: true, providers: [
+    { connectionId: "a", provider: "agy", quotas: { one: { quotaAggregate: true, windowSeconds: 604800, remainingPercentage: 0 }, two: { quotaAggregate: true, windowSeconds: 604800, remainingPercentage: 100 }, model: { windowSeconds: 604800, remainingPercentage: 100 }, session: { remainingPercentage: 42 } } },
+    { connectionId: "b", provider: "codex", quotas: { weekly: { windowSeconds: 604800, remainingPercentage: 100 }, session: { windowSeconds: 18000, remainingPercentage: 0 } } },
+    { connectionId: "c", provider: "codex", quotas: { weekly: { windowSeconds: 604800, unlimited: true, remainingPercentage: 0 }, session: { windowSeconds: 18000 } } },
+  ] })
+  expect(averageWindows(accounts)).toEqual({ "5h": 0, "7d": 75 })
+  expect(averageWindows([])).toEqual({ "5h": null, "7d": null })
+  accounts[1].quotas[0].remaining = NaN
+  expect(averageWindows(accounts)["7d"]).toBe(50)
+})
 
 test("metadata keeps only valid email local parts", () => {
   expect([...parseLabels({ connections: [{ id: "a", email: "alice@example.test", apiKey: "secret" }, { id: "b", email: "invalid" }, { id: "c", email: "@example.test" }] })]).toEqual([["a", "alice"]])

@@ -41,6 +41,12 @@ Use a `file://` URL pointing to the absolute path of the checkout instead of the
 
 ## Options
 
+Click the OmniRoute sidebar header to collapse or expand the whole section. It starts expanded.
+When collapsed, the header shows average remaining percentages for available 5h and 7d windows.
+Each account has equal weight: multiple matching windows are averaged within the account first.
+Unknown, missing and unlimited windows are excluded. Antigravity uses aggregate groups with explicit matching durations only.
+The header marks stale or unavailable data; missing averages are omitted.
+
 The default `bar-style` shows each account's quota windows as shaded bars, with
 labels on the left and percentages on the right. Missing windows show `—` and
 an empty bar. Unknown values show `?`, and unlimited quotas show `∞`. Antigravity

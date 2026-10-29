@@ -276,7 +276,6 @@ test("style options render real sidebar and details at both widths", async () =>
             await view.renderOnce()
             const frame = view.captureCharFrame()
             if (style === "percents-only-style") {
-              console.log(`FRAME ${width}\n${frame}`)
               expect(frame).not.toMatch(/[█░]/)
               expect(frame).toContain("ACCOUNT")
               expect(frame).toContain("Gemini · session: ∞")
@@ -297,6 +296,15 @@ test("style options render real sidebar and details at both widths", async () =>
               const walk = (node: Renderable): Renderable[] => [node, ...node.getChildren().flatMap(walk)]
               for (const node of walk(view.renderer.root)) expect(node.x + node.width).toBeLessThanOrEqual(width)
             } else expect(frame).toMatch(/[█░]/)
+            await view.mockMouse.click(2, 1)
+            await view.renderOnce()
+            const collapsed = view.captureCharFrame()
+            expect(collapsed).toContain("▶ OmniRoute  5h 0% · 7d 61%")
+            expect(collapsed).not.toContain("CODEX")
+            expect(collapsed).not.toContain("/omni-quota")
+            await view.mockMouse.click(2, 1)
+            await view.renderOnce()
+            expect(view.captureCharFrame()).toContain("CODEX")
           } finally { await view.dispose() }
         }
         const detail = await testRender(() => panel({ name: "omni-quota" }) as never, { width: 70, height: 35 })

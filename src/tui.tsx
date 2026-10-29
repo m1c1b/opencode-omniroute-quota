@@ -4,23 +4,13 @@ import { For, Show, createSignal, onMount } from "solid-js"
 import type { BoxRenderable } from "@opentui/core"
 import { createPoller, type State } from "./poller"
 import { resolveApiKey } from "./api-key"
-import { groupAccounts, summarizeQuotas, type Account, type Quota } from "./quota"
+import { averageWindows, groupAccounts, summarizeQuotas, windowType, type Account, type Quota } from "./quota"
 
 const initial: State = { accounts: null, status: "loading", updatedAt: null }
 const duration = (value: unknown, fallback: number) =>
   typeof value === "number" && Number.isFinite(value) && value >= 1000 ? value : fallback
 const shortId = (id: string) => id.slice(0, 8)
 const accountName = (account: Account) => account.label ?? `Account [${shortId(account.id)}]`
-
-function windowType(quota: Quota): "5h" | "7d" | null {
-  if (quota.windowSeconds === 18000) return "5h"
-  if (quota.windowSeconds === 604800) return "7d"
-  if (quota.windowSeconds != null) return null
-  const name = `${quota.key ?? ""} ${quota.name}`.toLowerCase()
-  if (/\b(weekly|week|7d|7 days?)\b/.test(name)) return "7d"
-  if (/\b(5h|5 hours?)\b/.test(name)) return "5h"
-  return null
-}
 
 const hasWindows = (account: Account) => account.quotas.some(quota => windowType(quota) !== null)
 const truncate = (value: string, width: number) => value.length > width ? `${value.slice(0, width - 1)}…` : value
@@ -44,6 +34,11 @@ export default Plugin.define({
   setup(ctx) {
     const percentsOnly = ctx.options.style === "percents-only-style"
     const [state, setState] = createSignal(initial)
+    const [expanded, setExpanded] = createSignal(true)
+    const summary = () => {
+      const values = averageWindows(state().accounts ?? [])
+      return (["5h", "7d"] as const).flatMap(window => values[window] === null ? [] : [`${window} ${Math.round(values[window])}%`]).join(" · ")
+    }
     const [sidebarWidth, setSidebarWidth] = createSignal(32)
     const contentWidth = () => Math.max(1, sidebarWidth() - 2)
     const compactBar = (remaining: number | null, unlimited = false) => {
@@ -91,7 +86,8 @@ export default Plugin.define({
         let sidebar!: BoxRenderable
         onMount(() => setSidebarWidth(sidebar.width))
         return <box ref={sidebar} flexDirection="column" width="100%" paddingTop={1} onSizeChange={function () { setSidebarWidth(this.width) }}>
-        <text height={1} flexShrink={0}><strong>OmniRoute</strong> · {percentsOnly ? state().status : state().status === "ready" ? "Account quotas" : `Account quotas · ${state().status}`}</text>
+        <text flexShrink={0} onMouseUp={() => setExpanded(!expanded())}><strong>{expanded() ? "▼" : "▶"} OmniRoute</strong>{expanded() ? ` · ${percentsOnly ? state().status : state().status === "ready" ? "Account quotas" : `Account quotas · ${state().status}`}` : `${summary() ? `  ${summary()}` : ""}${state().status !== "ready" ? ` · ${state().status}` : ""}`}</text>
+        <Show when={expanded()}>
         <For each={groupAccounts(state().accounts ?? [])}>{(group, groupIndex) => <box width="100%" flexDirection="column" flexShrink={0} paddingTop={groupIndex() ? 2 : 0}>
           <text height={1} flexShrink={0}><strong>{group.provider.toUpperCase()}</strong></text>
           <Show when={percentsOnly}>
@@ -123,6 +119,7 @@ export default Plugin.define({
           </Show>
         </box>}</For>
         <text>/omni-quota — details</text>
+        </Show>
       </box>},
     })
 
