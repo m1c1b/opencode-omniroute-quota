@@ -10,7 +10,7 @@ An OpenCode TUI plugin that shows OmniRoute account quotas in the session sideba
 
 ## Installation
 
-The package has not yet been published to npm. After publication, add the following entry to `~/.config/opencode/cli.json`:
+Add the following entry to `~/.config/opencode/cli.json`:
 
 ```json
 {
