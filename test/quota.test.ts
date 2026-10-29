@@ -56,6 +56,20 @@ test("groups accounts by provider without losing order", () => {
   expect(groupAccounts(accounts).map(group => [group.provider, group.accounts.map(account => account.id)])).toEqual([["a", ["0", "2"]], ["b", ["1"]]])
 })
 
+test("preserves API order across interleaved providers and accounts", () => {
+  const accounts = parseResponse({ allowed: true, providers: [
+    { connectionId: "z", provider: "agy", quotas: {} },
+    { connectionId: "y", provider: "codex", quotas: {} },
+    { connectionId: "a", provider: "agy", quotas: {} },
+    { connectionId: "b", provider: "codex", quotas: {} },
+  ] })
+  expect(accounts.map(account => account.id)).toEqual(["z", "y", "a", "b"])
+  expect(groupAccounts(accounts).map(group => [group.provider, group.accounts.map(account => account.id)])).toEqual([
+    ["agy", ["z", "a"]],
+    ["codex", ["y", "b"]],
+  ])
+})
+
 const provider = (connectionId: string) => ({
   connectionId, provider: "codex", plan: "pro", quotas: {
     session: { used: 12, total: 100, remaining: 88, displayName: "Weekly", resetAt: "2026-01-01T00:00:00Z" },
@@ -64,9 +78,9 @@ const provider = (connectionId: string) => ({
 })
 
 describe("OmniRoute response", () => {
-  test("uses all accounts, sorts them and handles quota variants", () => {
+  test("uses all accounts in API order and handles quota variants", () => {
     const accounts = parseResponse({ allowed: true, provider: provider("ignored"), providers: [provider("b"), provider("a")] })
-    expect(accounts.map(a => a.id)).toEqual(["a", "b"])
+    expect(accounts.map(a => a.id)).toEqual(["b", "a"])
     expect(accounts[0]?.quotas[0]).toMatchObject({ name: "Weekly", remaining: 88, resetAt: "2026-01-01T00:00:00Z" })
     expect(accounts[0]?.quotas[1]?.remaining).toBe(0)
   })

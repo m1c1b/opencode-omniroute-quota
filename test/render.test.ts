@@ -225,7 +225,7 @@ test("sidebar left-aligns numbered accounts under full-width provider rules", as
           await view.renderOnce()
           allFrames += view.captureCharFrame()
         }
-        for (const name of ["1  a*********", "2  c*********", "3  long****me", "1  d*********"]) expect(allFrames).toContain(name)
+        for (const name of ["1  a*********", "2  long****me", "3  c*********", "1  d*********"]) expect(allFrames).toContain(name)
         expect(allFrames).toContain("Gemini weekly")
         expect(allFrames).toContain("Gemini session")
         expect(allFrames).toContain(width === 32 ? "Claude/GPT weekly" : "Claude/GPT weekly")
@@ -234,7 +234,7 @@ test("sidebar left-aligns numbered accounts under full-width provider rules", as
         expect(allFrames).not.toContain("example.test")
         expect(frame.match(/CODEX/g)?.length).toBe(1)
         expect(allFrames).toContain("AGY")
-        expect(allFrames).toMatch(/3  long\*{4}me[^\n]*\n[^\n]*5h [^\n]*60%[^\n]*\n[^\n]*7d [^\n]*80%/)
+        expect(allFrames).toMatch(/2  long\*{4}me[^\n]*\n[^\n]*5h [^\n]*60%[^\n]*\n[^\n]*7d [^\n]*80%/)
         expect(allFrames).toMatch(/5h [░]+\s+0%/)
         expect(allFrames).toMatch(/7d [░]+\s+—/)
         const walk = (node: Renderable): Renderable[] => [node, ...node.getChildren().flatMap(walk)]
@@ -321,7 +321,7 @@ test("style options render real sidebar and details at both widths", async () =>
               expect(tenth).toContain("#10 ")
               expect(tenth.indexOf("50%") + 3).toBe(numberHeader.indexOf("7d") + 2)
               expect(frame).toMatch(/b[^\n]*\n─+\n.*f/)
-              expect(frame).not.toMatch(/long[^\n]*\n─+/)
+              expect(frame).toMatch(/long[^\n]*\n─+/)
               const walk = (node: Renderable): Renderable[] => [node, ...node.getChildren().flatMap(walk)]
               for (const node of walk(view.renderer.root)) expect(node.x + node.width).toBeLessThanOrEqual(width)
             } else {
@@ -374,7 +374,7 @@ test("collapsed summary uses only the first displayed provider", async () => {
   const plugin: Plugin.Definition = (await import(url)).default
   const restoreKey = setTestApiKey()
   try {
-    for (const [firstQuotas, expected] of [[{ session: { windowSeconds: 18000, used: 75, total: 100, remainingPercentage: 90 } }, "▶ ⚙️ · FIRST · 25% · —"], [{ weekly: { windowSeconds: 604800, used: 5, total: 100 } }, "▶ ⚙️ · FIRST · — · 95%"], [{ other: { remainingPercentage: 25 }, weekly: { windowSeconds: 604800, unlimited: true }, session: { windowSeconds: 18000, remaining: 25, total: 100 } }, "▶ ⚙️ · FIRST · — · —"]] as const) {
+    for (const firstQuotas of [{ session: { windowSeconds: 18000, used: 75, total: 100, remainingPercentage: 90 } }, { weekly: { windowSeconds: 604800, used: 5, total: 100 } }, { other: { remainingPercentage: 25 }, weekly: { windowSeconds: 604800, unlimited: true }, session: { windowSeconds: 18000, remaining: 25, total: 100 } }] as const) {
       const providers = [
         { connectionId: "z", provider: "second", quotas: { session: { windowSeconds: 18000, used: 10, total: 100, remainingPercentage: 90 }, weekly: { windowSeconds: 604800, used: 20, total: 100, remainingPercentage: 80 } } },
         { connectionId: "a", provider: "first", quotas: firstQuotas },
@@ -395,8 +395,8 @@ test("collapsed summary uses only the first displayed provider", async () => {
           await view.mockMouse.click(2, 1)
           await view.renderOnce()
           const frame = view.captureCharFrame()
-          expect(frame.split("\n").find(line => line.includes("⚙️"))!.trim()).toBe(expected)
-          expect(frame).not.toContain("SECOND")
+          expect(frame.split("\n").find(line => line.includes("⚙️"))!.trim()).toBe("▶ ⚙️ · SECOND · 90% · 80%")
+          expect(frame).not.toContain("FIRST")
           expect(frame).not.toContain("THIRD")
           expect(frame).not.toContain("FOURTH")
           const walk = (node: Renderable): Renderable[] => [node, ...node.getChildren().flatMap(walk)]

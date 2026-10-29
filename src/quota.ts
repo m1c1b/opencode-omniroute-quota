@@ -119,7 +119,7 @@ function percentage(quota: Record<string, unknown>): number | null {
 export function parseResponse(value: unknown): Account[] {
   const body = record(value)
   if (!body || body.allowed !== true) throw new Error("invalid response")
-  if (Array.isArray(body.providers)) return body.providers.map(parseAccount).sort((a, b) => a.id.localeCompare(b.id))
+  if (Array.isArray(body.providers)) return body.providers.map(parseAccount)
   if (body.provider) return [parseAccount(body.provider)]
   throw new Error("invalid response")
 }
