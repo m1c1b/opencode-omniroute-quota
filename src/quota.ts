@@ -9,6 +9,7 @@ export interface Quota {
 
 export interface Account {
   id: string
+  label?: string
   provider: string
   plan: string
   quotas: Quota[]
@@ -73,11 +74,44 @@ export function parseResponse(value: unknown): Account[] {
   throw new Error("invalid response")
 }
 
+export function parseLabels(value: unknown): Map<string, string> {
+  const labels = new Map<string, string>()
+  const connections = record(value)?.connections
+  if (!Array.isArray(connections)) return labels
+  for (const raw of connections) {
+    const item = record(raw)
+    const id = text(item?.id)
+    const email = text(item?.email)
+    const at = email.indexOf("@")
+    if (id && at > 0 && at < email.length - 1) labels.set(id, email.slice(0, at))
+  }
+  return labels
+}
+
+export function groupAccounts(accounts: Account[]): { provider: string; accounts: Account[] }[] {
+  const groups = new Map<string, Account[]>()
+  for (const account of accounts) {
+    const group = groups.get(account.provider) ?? []
+    group.push(account)
+    groups.set(account.provider, group)
+  }
+  return [...groups].map(([provider, accounts]) => ({ provider, accounts }))
+}
+
 export async function fetchQuotas(baseUrl: string, apiKey: string, signal: AbortSignal): Promise<Account[]> {
   const base = new URL(baseUrl)
   if (!["http:", "https:"].includes(base.protocol) || base.username || base.password) throw new Error("invalid URL")
   const url = new URL("/api/usage/om-usage?format=json", base)
   const response = await fetch(url, { headers: { Authorization: `Bearer ${apiKey}` }, signal, redirect: "error" })
   if (!response.ok) throw new Error("request failed")
-  return parseResponse(await response.json())
+  const accounts = parseResponse(await response.json())
+  if (!accounts.length) return accounts
+  try {
+    const metadata = await fetch(new URL("/api/providers", base), { headers: { Authorization: `Bearer ${apiKey}` }, signal, redirect: "error" })
+    if (metadata.ok) {
+      const labels = parseLabels(await metadata.json())
+      for (const account of accounts) account.label = labels.get(account.id)
+    }
+  } catch { /* Metadata is optional. */ }
+  return accounts
 }

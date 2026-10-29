@@ -9,8 +9,8 @@ test("panel renders and scrolls within its allocated dimensions", async () => {
   const file = Bun.file(`${import.meta.dir}/../dist/render-test.js`)
   await Bun.write(file, result.outputs[0])
   const plugin: Plugin.Definition = (await import(new URL("../dist/render-test.js", import.meta.url).href)).default
-  const providers = Array.from({ length: 3 }, (_, i) => ({ connectionId: `account${i}`, provider: `provider${i}`, plan: "pro", quotas: Object.fromEntries(Array.from({ length: 12 }, (_, j) => [`window${j}`, j === 0 ? { used: 10, total: 10 } : j === 1 ? { used: 5, total: 10 } : j === 2 ? { used: 0, total: 10 } : j === 3 ? {} : j === 4 ? { unlimited: true } : { used: 2, total: 10 }])) }))
-  const server = Bun.serve({ port: 0, fetch: () => Response.json({ allowed: true, providers }) })
+  const providers = Array.from({ length: 3 }, (_, i) => ({ connectionId: `account${i}`, provider: `provider${i === 1 ? 0 : i}`, plan: "pro", quotas: Object.fromEntries(Array.from({ length: 12 }, (_, j) => [`window${j}`, j === 0 ? { used: 10, total: 10 } : j === 1 ? { used: 5, total: 10 } : j === 2 ? { used: 0, total: 10 } : j === 3 ? {} : j === 4 ? { unlimited: true } : { used: 2, total: 10 }])) }))
+  const server = Bun.serve({ port: 0, fetch: request => new URL(request.url).pathname === "/api/providers" ? Response.json({ connections: providers.map((p, i) => ({ id: p.connectionId, email: `user${i}@example.test` })) }) : Response.json({ allowed: true, providers }) })
   const previousKey = process.env.OMNIROUTE_API_KEY
   process.env.OMNIROUTE_API_KEY = "test"
   let panel: (input: { name: string }) => unknown = () => null
@@ -31,7 +31,9 @@ test("panel renders and scrolls within its allocated dimensions", async () => {
         expect(frame).toContain("OmniRoute: ready")
         expect(frame).toContain("Кеш OmniRoute · не гарантия")
         expect(frame).toContain("Получено плагином:")
-        expect(frame).toContain("provider0 pro [account0]")
+        expect(frame).toContain("provider0")
+        expect(frame).toContain("user0 pro")
+        expect(frame).not.toContain("example.test")
         expect(frame).toContain("window0: осталось")
         expect(frame).toContain("░░░░░░░░░░")
         expect(frame).toContain("Использовано 10 / 10")
@@ -62,20 +64,24 @@ test("panel renders and scrolls within its allocated dimensions", async () => {
           allFrames += view.captureCharFrame()
         }
         for (let i = 0; i < 12; i++) expect(allFrames).toContain(`window${i}: осталось`)
-        for (let i = 0; i < 3; i++) expect(allFrames).toContain(`provider${i} pro [account${i}]`)
+        for (let i = 0; i < 3; i++) expect(allFrames).toContain(`user${i} pro`)
         scroll.scrollTo(scroll.scrollHeight)
         await view.renderOnce()
         expect(view.captureCharFrame()).toContain("window11: осталось")
         scroll.scrollTo(0)
         await view.renderOnce()
-        scroll.scrollChildIntoView(nodes.find(node => node instanceof ScrollBoxRenderable)!.getChildren()[2].id)
+        scroll.scrollChildIntoView(nodes.find(node => node instanceof ScrollBoxRenderable)!.getChildren()[1].id)
         await view.renderOnce()
-        expect(view.captureCharFrame()).toContain("provider2 pro [account2]")
+        expect(view.captureCharFrame()).toContain("provider2")
       } finally { await view.dispose() }
       const side = await testRender(() => sidebar({ name: "" }) as never, { width, height: 18 })
       try {
         await side.renderOnce()
         expect(side.captureCharFrame()).toContain("░░░░░░░░░░")
+        expect(side.captureCharFrame()).toContain("user0")
+        expect(side.captureCharFrame()).toContain("user1")
+        expect(side.captureCharFrame()).not.toContain("example.test")
+        expect(side.captureCharFrame().match(/provider0/g)?.length).toBe(1)
         expect(side.captureCharFrame()).not.toContain("%")
       } finally { await side.dispose() }
     }

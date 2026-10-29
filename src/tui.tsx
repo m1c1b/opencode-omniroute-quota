@@ -3,13 +3,13 @@ import { Plugin } from "@opencode/plugin/tui"
 import { For, Show, createSignal } from "solid-js"
 import { createPoller, type State } from "./poller"
 import { resolveApiKey } from "./api-key"
-import type { Account } from "./quota"
+import { groupAccounts, type Account } from "./quota"
 
 const initial: State = { accounts: null, status: "loading", updatedAt: null }
 const duration = (value: unknown, fallback: number) =>
   typeof value === "number" && Number.isFinite(value) && value >= 1000 ? value : fallback
 const shortId = (id: string) => id.slice(0, 8)
-const accountName = (account: Account) => `${account.provider} ${account.plan} [${shortId(account.id)}]`
+const accountName = (account: Account) => account.label ?? `Аккаунт [${shortId(account.id)}]`
 
 function reset(value: string | null): string {
   if (!value) return "—"
@@ -38,14 +38,17 @@ export default Plugin.define({
       append: "sidebar.content",
       render: () => <box flexDirection="column" paddingTop={1}>
         <text><strong>OmniRoute</strong> · {state().status}</text>
-        <For each={state().accounts ?? []}>{account => {
+        <For each={groupAccounts(state().accounts ?? [])}>{group => <box flexDirection="column">
+          <text><strong>{group.provider}</strong></text>
+          <For each={group.accounts}>{account => {
           const limited = account.quotas.filter(quota => !quota.unlimited)
           const known = limited.flatMap(quota => quota.remaining === null ? [] : [quota.remaining])
-          return <box flexDirection="column">
-            <text>{account.provider} [{shortId(account.id)}]: {account.quotas.length} квот</text>
+          return <box flexDirection="column" paddingLeft={1}>
+            <text>{accountName(account)}: {account.quotas.length} квот</text>
             <Show when={account.quotas.length > 0}><text>Мин. остаток{known.length > 0 && known.length < limited.length ? " + ?" : ""}:</text>{bar(known.length ? Math.min(...known) : null, limited.length === 0)}</Show>
           </box>
-        }}</For>
+          }}</For>
+        </box>}</For>
         <text>/omni-quota — подробнее</text>
       </box>,
     })
@@ -58,13 +61,16 @@ export default Plugin.define({
           <text flexShrink={0}>Кеш OmniRoute · не гарантия маршрута</text>
           <Show when={state().updatedAt}>{time => <text flexShrink={0}>{`Получено плагином: ${new Date(time()).toLocaleString()}`}</text>}</Show>
           <scrollbox flexGrow={1} flexShrink={1}>
-            <For each={state().accounts ?? []}>{account => <box flexDirection="column" paddingTop={1}>
-              <text><strong>{accountName(account)}</strong></text>
+            <For each={groupAccounts(state().accounts ?? [])}>{group => <box flexDirection="column" paddingTop={1}>
+              <text><strong>{group.provider}</strong></text>
+              <For each={group.accounts}>{account => <box flexDirection="column" paddingLeft={1}>
+              <text><strong>{accountName(account)} {account.plan}</strong></text>
               <For each={account.quotas}>{quota => <box flexDirection="column">
                 <text>{quota.name}: осталось</text>
                 {bar(quota.remaining, quota.unlimited)}
                 <text>Использовано {quota.used ?? "?"} / {quota.total ?? "?"}</text>
                 <text>Сброс: {reset(quota.resetAt)}</text>
+              </box>}</For>
               </box>}</For>
             </box>}</For>
           </scrollbox>

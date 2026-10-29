@@ -1,5 +1,15 @@
 import { describe, expect, test } from "bun:test"
-import { fetchQuotas, parseResponse, summarizeQuotas, type Quota } from "../src/quota"
+import { fetchQuotas, groupAccounts, parseLabels, parseResponse, summarizeQuotas, type Quota } from "../src/quota"
+
+test("metadata keeps only valid email local parts", () => {
+  expect([...parseLabels({ connections: [{ id: "a", email: "alice@example.test", apiKey: "secret" }, { id: "b", email: "invalid" }, { id: "c", email: "@example.test" }] })]).toEqual([["a", "alice"]])
+  expect(parseLabels({ connections: null }).size).toBe(0)
+})
+
+test("groups accounts by provider without losing order", () => {
+  const accounts = ["a", "b", "a"].map((provider, i) => ({ id: String(i), provider, plan: "", quotas: [] }))
+  expect(groupAccounts(accounts).map(group => [group.provider, group.accounts.map(account => account.id)])).toEqual([["a", ["0", "2"]], ["b", ["1"]]])
+})
 
 const provider = (connectionId: string) => ({
   connectionId, provider: "codex", plan: "pro", quotas: {
@@ -40,14 +50,23 @@ describe("OmniRoute response", () => {
 
   test("sends bearer to expected endpoint and rejects redirects", async () => {
     const server = Bun.serve({ port: 0, fetch(request) {
+      expect(request.headers.get("authorization")).toBe("Bearer test-key")
+      if (new URL(request.url).pathname === "/api/providers") return Response.json({ connections: [{ id: "a", email: "alice@example.test" }] })
       expect(new URL(request.url).pathname).toBe("/api/usage/om-usage")
       expect(new URL(request.url).searchParams.get("format")).toBe("json")
-      expect(request.headers.get("authorization")).toBe("Bearer test-key")
       return Response.json({ allowed: true, providers: [provider("a")] })
     } })
     try {
-      expect(await fetchQuotas(server.url.href, "test-key", new AbortController().signal)).toHaveLength(1)
+      expect((await fetchQuotas(server.url.href, "test-key", new AbortController().signal))[0].label).toBe("alice")
     } finally { server.stop() }
+  })
+
+  test("keeps quotas when metadata is forbidden", async () => {
+    const server = Bun.serve({ port: 0, fetch(request) {
+      return new URL(request.url).pathname === "/api/providers" ? new Response(null, { status: 403 }) : Response.json({ allowed: true, providers: [provider("a")] })
+    } })
+    try { expect((await fetchQuotas(server.url.href, "test-key", new AbortController().signal))[0].label).toBeUndefined() }
+    finally { server.stop(true) }
   })
 
   test("does not follow redirects or send credentials to redirect target", async () => {
