@@ -43,11 +43,11 @@ export default Plugin.define({
     const removePanel = ctx.ui.slot({
       append: "session.panel",
       render: input => <Show when={input.name === "omni-quota"}>
-        <box flexDirection="column" height="100%">
-          <text><strong>OmniRoute: {state().status}</strong> · /omni-quota-refresh</text>
-          <text>Кеш OmniRoute · сырые проценты, не гарантия маршрута</text>
-          <Show when={state().updatedAt}>{time => <text>Получено плагином: {new Date(time()).toLocaleString()}</text>}</Show>
-          <scrollbox flexGrow={1}>
+        <box flexDirection="column" height="100%" backgroundColor={ctx.theme.background.base}>
+          <text flexShrink={0}><strong>{`OmniRoute: ${state().status}`}</strong>{" · /omni-quota-refresh"}</text>
+          <text flexShrink={0}>Кеш OmniRoute · сырые проценты, не гарантия маршрута</text>
+          <Show when={state().updatedAt}>{time => <text flexShrink={0}>{`Получено плагином: ${new Date(time()).toLocaleString()}`}</text>}</Show>
+          <scrollbox flexGrow={1} flexShrink={1}>
             <For each={state().accounts ?? []}>{account => <box flexDirection="column" paddingTop={1}>
               <text><strong>{accountName(account)}</strong></text>
               <For each={account.quotas}>{quota => <box flexDirection="column">
