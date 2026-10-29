@@ -42,7 +42,7 @@ export default Plugin.define({
     const [state, setState] = createSignal(initial)
     const [expanded, setExpanded] = createSignal(true)
     const [sidebarWidth, setSidebarWidth] = createSignal(32)
-    const summaries = () => groupAccounts(state().accounts ?? []).slice(0, 3).map(group => {
+    const summaries = () => groupAccounts(state().accounts ?? []).slice(0, 1).map(group => {
       const values = averageWindows(group.accounts)
       return { provider: group.provider.toUpperCase(), windows: (["5h", "7d"] as const).map(window => values[window] == null ? "—" : `${Math.round(values[window])}%`) }
     })

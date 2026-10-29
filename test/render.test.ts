@@ -362,7 +362,7 @@ test("style options render real sidebar and details at both widths", async () =>
   }
 })
 
-test("collapsed summaries use the first three displayed providers independently", async () => {
+test("collapsed summary uses only the first displayed provider", async () => {
   const result = await Bun.build({ entrypoints: ["src/tui.tsx"], target: "bun", external: ["@opencode/plugin/tui", "@opentui/solid", "solid-js"], plugins: [createSolidTransformPlugin()] })
   const file = Bun.file(`${import.meta.dir}/../dist/render-first-provider-test.js`)
   await Bun.write(file, result.outputs[0])
@@ -392,12 +392,12 @@ test("collapsed summaries use the first three displayed providers independently"
           await view.renderOnce()
           const frame = view.captureCharFrame()
           expect(frame.split("\n").find(line => line.includes("⚙️"))!.trim()).toBe(expected)
-          expect(frame).toContain("| SECOND | 90% | 80% |")
-          expect(frame).toContain(width === 32 ? "| THIRDPROVI… | — | 90% |" : "| THIRDPROVIDERWITHAVERYLONGNAME | — | 90% |")
+          expect(frame).not.toContain("SECOND")
+          expect(frame).not.toContain("THIRD")
           expect(frame).not.toContain("FOURTH")
           const walk = (node: Renderable): Renderable[] => [node, ...node.getChildren().flatMap(walk)]
           for (const node of walk(view.renderer.root)) expect(node.x + node.width).toBeLessThanOrEqual(width)
-          await view.mockMouse.click(7, 2)
+          await view.mockMouse.click(2, 1)
           await view.renderOnce()
         } finally { await view.dispose() }
         }
