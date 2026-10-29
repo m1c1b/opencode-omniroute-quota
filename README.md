@@ -132,4 +132,4 @@ bun run build
 
 ## License
 
-No license has been granted. All rights reserved.
+Copyright 2026 m1c1b. Licensed under the [Apache License 2.0](LICENSE).
