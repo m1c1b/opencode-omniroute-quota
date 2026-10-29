@@ -37,7 +37,7 @@ export default Plugin.define({
     const [state, setState] = createSignal(initial)
     const [sidebarWidth, setSidebarWidth] = createSignal(32)
     const contentWidth = () => Math.max(1, sidebarWidth() - 2)
-    const barWidth = () => Math.max(1, Math.min(10, contentWidth() - 16))
+    const barWidth = () => Math.max(1, contentWidth() - 8)
     const compactBar = (remaining: number | null, unlimited = false) => {
       if (unlimited) return "∞"
       if (remaining === null) return "?"
@@ -74,9 +74,10 @@ export default Plugin.define({
         onMount(() => setSidebarWidth(sidebar.width))
         return <box ref={sidebar} flexDirection="column" width="100%" paddingTop={1} onSizeChange={function () { setSidebarWidth(this.width) }}>
         <text height={1} flexShrink={0}><strong>OmniRoute</strong> · {state().status}</text>
-        <For each={groupAccounts(state().accounts ?? [])}>{group => <box width="100%" border borderStyle="single" borderColor={ctx.theme.text.muted} flexDirection="column" flexShrink={0} alignItems="center">
+        <For each={groupAccounts(state().accounts ?? [])}>{(group, groupIndex) => <box width="100%" flexDirection="column" flexShrink={0} paddingTop={groupIndex() ? 2 : 0}>
           <text height={1} flexShrink={0}><strong>{group.provider.toUpperCase()}</strong></text>
-          <For each={group.accounts}>{(account, accountIndex) => <box width="100%" flexShrink={0} flexDirection="column" alignItems="center" paddingTop={1}>
+          <text height={1} flexShrink={0} fg={ctx.theme.text.muted}>{"─".repeat(sidebarWidth())}</text>
+          <For each={group.accounts}>{(account, accountIndex) => <box width="100%" flexShrink={0} flexDirection="column" paddingLeft={2} paddingTop={accountIndex() ? 1 : 0}>
               <text wrapMode="none">{truncate(`${accountIndex() + 1}. ${accountName(account)}`, contentWidth())}</text>
               <Show when={hasWindows(account)} fallback={<>
                 <text wrapMode="none">{truncate(summarizeQuotas(account.quotas), contentWidth())}</text>

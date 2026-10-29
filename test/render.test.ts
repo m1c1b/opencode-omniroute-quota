@@ -99,7 +99,7 @@ test("panel renders and scrolls within its allocated dimensions", async () => {
   }
 })
 
-test("sidebar centers numbered accounts in full-width provider frames", async () => {
+test("sidebar left-aligns numbered accounts under full-width provider rules", async () => {
   const result = await Bun.build({ entrypoints: ["src/tui.tsx"], target: "bun", external: ["@opencode/plugin/tui", "@opentui/solid", "solid-js"], plugins: [createSolidTransformPlugin()] })
   await Bun.write(`${import.meta.dir}/../dist/render-windows-test.js`, result.outputs[0])
   const plugin: Plugin.Definition = (await import(new URL("../dist/render-windows-test.js", import.meta.url).href)).default
@@ -135,21 +135,20 @@ test("sidebar centers numbered accounts in full-width provider frames", async ()
         const frame = view.captureCharFrame()
         const lines = frame.split("\n")
         expect(frame).not.toMatch(/[╭╮╰╯]/)
-        expect(lines[2]).toContain(`┌${"─".repeat(width - 3)}┐`)
+        expect(frame).not.toMatch(/[┌┐└┘│]/)
+        expect(lines.find(line => line.startsWith("─"))).toContain("─".repeat(width - 1))
         expect(frame).toContain("longusername")
         expect(frame).toContain("60% 5ч")
         expect(frame).toContain("80% 7д")
         expect(frame).toContain("? 5ч")
         expect(frame).toContain("∞ 7д")
-        ;["CODEX", "1. a", "2. c", "3. longusername", "60% 5ч", "80% 7д", "? 5ч", "∞ 7д"].forEach(text => {
-          const line = lines.find(item => item.includes(text))!
-          const inner = line.slice(1, width - 2)
-          expect(Math.abs(inner.length - inner.trimStart().length - (inner.length - inner.trimEnd().length))).toBeLessThanOrEqual(1)
+        expect(lines.find(line => line.includes("CODEX"))!.startsWith("CODEX")).toBe(true)
+        ;["1. a", "2. c", "3. longusername", "60% 5ч", "80% 7д", "? 5ч", "∞ 7д"].forEach(text => {
+          expect(lines.find(line => line.includes(text))!.startsWith("  ")).toBe(true)
         })
-        ;["1. a", "2. c", "3. longusername"].forEach(name => {
-          const index = lines.findIndex(line => line.includes(name))
-          expect(lines[index - 1].slice(1, width - 2).trim()).toBe("")
-        })
+        const bars = lines.filter(line => /[█░]+ \d+% [57][чд]/.test(line))
+        expect(new Set(bars.map(line => line.match(/[█░]+/)![0].length)).size).toBe(1)
+        expect(bars[0].match(/[█░]+/)![0].length).toBeGreaterThan(10)
         expect(frame).not.toContain("example.test")
         expect(container.width).toBe(width)
         let allFrames = frame
@@ -163,7 +162,8 @@ test("sidebar centers numbered accounts in full-width provider frames", async ()
         expect(allFrames).not.toContain("example.test")
         expect(frame.match(/CODEX/g)?.length).toBe(1)
         expect(allFrames).toContain("AGY")
-        expect(lines.filter(line => line.includes("─")).length).toBe(2)
+        expect(allFrames).toMatch(new RegExp(`AGY[^\n]*\n─{${width - 1}}`))
+        expect(allFrames).toMatch(/3\. longusername[^\n]*\n[^\n]*60% 5ч[^\n]*\n\s*\n[^\n]*80% 7д/)
         const fiveHour = lines.findIndex(line => line.includes("60% 5ч"))
         expect(lines[fiveHour + 1].slice(1, width - 2).trim()).toBe("")
         expect(lines[fiveHour + 2]).toContain("80% 7д")
