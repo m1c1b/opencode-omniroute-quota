@@ -220,6 +220,8 @@ test("style options render real sidebar and details at both widths", async () =>
     { connectionId: "b", provider: "codex", quotas: { session: { windowSeconds: 18000 }, weekly: { windowSeconds: 604800, unlimited: true } } },
     { connectionId: "c", provider: "agy", quotas: { gemini_weekly: { quotaGroupId: "gemini", quotaAggregate: true, window: "weekly", remainingPercentage: 25 }, gemini_session: { quotaGroupId: "gemini", quotaAggregate: true, window: "session", unlimited: true }, claude_gpt_session: { quotaGroupId: "claude_gpt", quotaAggregate: true, window: "session", remainingPercentage: 42 } } },
     { connectionId: "d", provider: "other", quotas: { model: { remainingPercentage: 50 } } },
+    { connectionId: "e", provider: "weeklyonly", quotas: { weekly: { windowSeconds: 604800, remainingPercentage: 42 } } },
+    { connectionId: "f", provider: "codex", quotas: { session: { windowSeconds: 18000, remainingPercentage: 0 } } },
   ]
   const server = Bun.serve({ port: 0, fetch: request => new URL(request.url).pathname === "/api/providers" ? Response.json({ connections: providers.map(p => ({ id: p.connectionId, email: `${p.connectionId}@example.test` })) }) : Response.json({ allowed: true, providers }) })
   const previousKey = process.env.OMNIROUTE_API_KEY
@@ -246,8 +248,16 @@ test("style options render real sidebar and details at both widths", async () =>
               expect(frame).toContain("Claude/GPT · session: 42%")
               expect(frame).toContain("min. 50%")
               expect(frame).toMatch(/\?\s+∞/)
-              expect(frame).toMatch(/—\s+80%/)
-              expect(frame).toMatch(/b[^\n]*\n─+\n.*long/)
+              const lines = frame.split("\n")
+              const mixedHeader = lines.findIndex(line => line.includes("ACCOUNT") && line.includes("5h"))
+              const weeklyLine = lines.find(line => line.includes("long") && line.includes("80%"))!
+              expect(weeklyLine.slice(lines[mixedHeader].indexOf("5h") - 4, lines[mixedHeader].indexOf("7d") - 4).trim()).toBe("")
+              expect(weeklyLine.indexOf("80%") + 3).toBe(lines[mixedHeader].indexOf("7d") + 2)
+              expect(frame).toMatch(/0%\s+—/)
+              const weeklyGroup = lines.findIndex(line => line.includes("WEEKLYONLY"))
+              expect(lines[weeklyGroup + 1]).toContain("7d")
+              expect(lines[weeklyGroup + 1]).not.toContain("5h")
+              expect(frame).toMatch(/b[^\n]*\n─+\n.*f/)
               expect(frame).not.toMatch(/long[^\n]*\n─+/)
               const walk = (node: Renderable): Renderable[] => [node, ...node.getChildren().flatMap(walk)]
               for (const node of walk(view.renderer.root)) expect(node.x + node.width).toBeLessThanOrEqual(width)
