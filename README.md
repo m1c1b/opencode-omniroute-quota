@@ -1,4 +1,4 @@
-# OmniRoute Quota for OpenCode
+# opencode-omniroute-quota
 
 An OpenCode TUI plugin that shows OmniRoute account quotas in the session sidebar. Open the details panel to inspect individual quotas, usage and reset times.
 
@@ -16,7 +16,7 @@ The package has not yet been published to npm. After publication, add the follow
 {
   "plugins": [
     {
-      "package": "opencode-omni-quota",
+      "package": "opencode-omniroute-quota",
       "options": {
         "baseUrl": "https://omniroute.example.com",
         "apiKey": "{env:OMNIROUTE_API_KEY}"
@@ -37,7 +37,7 @@ bun install --frozen-lockfile
 bun run build
 ```
 
-Use a `file://` URL pointing to the absolute path of the checkout instead of the package name in the configuration above. For example, `file:///absolute/path/to/opencode-omni-quota`. Set the API key in the TUI process environment before starting OpenCode.
+Use a `file://` URL pointing to the absolute path of the checkout instead of the package name in the configuration above. For example, `file:///absolute/path/to/opencode-omniroute-quota`. Set the API key in the TUI process environment before starting OpenCode.
 
 ## Options
 
@@ -66,7 +66,7 @@ theme and are not shown in the plaintext previews. Account labels are masked.
 ```
 
 ```text
-▼ ⚙️ Usage · Updated 12:34:56
+▼ ⚙️ Quota · Updated 12:34:56
 CODEX
 #1  demo****01
   5h ████████████▒░░░░░░░    61%
@@ -86,7 +86,7 @@ The shaded bars use `░`, `▒`, `▓`, and `█`. The second account has no 5h
 ```
 
 ```text
-▼ ⚙️ Usage · Updated 12:34:56
+▼ ⚙️ Quota · Updated 12:34:56
 CODEX
 #  ACCOUNT             5h     7d
 #1 demo****01         61%    95%

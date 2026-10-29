@@ -285,7 +285,7 @@ test("style options render real sidebar and details at both widths", async () =>
             await view.renderOnce()
             await view.renderOnce()
             const frame = view.captureCharFrame()
-            expect(frame).toMatch(/▼ ⚙️ Usage · Updated \d\d:\d\d:\d\d/)
+            expect(frame).toMatch(/▼ ⚙️ Quota · Updated \d\d:\d\d:\d\d/)
             expect(frame).toContain("long****le")
             expect(frame).not.toContain("longaccountnameexample")
             expect(frame).not.toContain("example.test")
@@ -345,7 +345,7 @@ test("style options render real sidebar and details at both widths", async () =>
             expect(collapsed).not.toContain("/omni-quota")
             await view.mockMouse.click(2, 1)
             await view.renderOnce()
-            expect(view.captureCharFrame()).toMatch(/▼ ⚙️ Usage · Updated \d\d:\d\d:\d\d/)
+            expect(view.captureCharFrame()).toMatch(/▼ ⚙️ Quota · Updated \d\d:\d\d:\d\d/)
           } finally { await view.dispose() }
         }
         const detail = await testRender(() => panel({ name: "omni-quota" }) as never, { width: 70, height: 35 })

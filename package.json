@@ -1,13 +1,13 @@
 {
-  "name": "opencode-omni-quota",
+  "name": "opencode-omniroute-quota",
   "version": "0.1.0",
   "description": "OpenCode TUI plugin for viewing OmniRoute account quotas",
   "keywords": ["opencode", "opencode-plugin", "omniroute", "quota", "tui"],
   "author": "m1c1b <49164999+m1c1b@users.noreply.github.com>",
   "license": "UNLICENSED",
-  "repository": { "type": "git", "url": "git+https://github.com/m1c1b/opencode-omni-quota.git" },
-  "bugs": { "url": "https://github.com/m1c1b/opencode-omni-quota/issues" },
-  "homepage": "https://github.com/m1c1b/opencode-omni-quota#readme",
+  "repository": { "type": "git", "url": "git+https://github.com/m1c1b/opencode-omniroute-quota.git" },
+  "bugs": { "url": "https://github.com/m1c1b/opencode-omniroute-quota/issues" },
+  "homepage": "https://github.com/m1c1b/opencode-omniroute-quota#readme",
   "type": "module",
   "exports": {
     "./tui": "./dist/tui.js"
