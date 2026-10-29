@@ -3,14 +3,12 @@ import { Plugin } from "@opencode/plugin/tui"
 import { For, Show, createSignal } from "solid-js"
 import { createPoller, type State } from "./poller"
 import { resolveApiKey } from "./api-key"
-import { summarizeQuotas } from "./quota"
-import type { Account, Quota } from "./quota"
+import type { Account } from "./quota"
 
 const initial: State = { accounts: null, status: "loading", updatedAt: null }
 const duration = (value: unknown, fallback: number) =>
   typeof value === "number" && Number.isFinite(value) && value >= 1000 ? value : fallback
 const shortId = (id: string) => id.slice(0, 8)
-const pct = (quota: Quota) => quota.unlimited ? "∞" : quota.remaining === null ? "?" : `${quota.remaining}%`
 const accountName = (account: Account) => `${account.provider} ${account.plan} [${shortId(account.id)}]`
 
 function reset(value: string | null): string {
@@ -23,6 +21,12 @@ export default Plugin.define({
   id: "omni-quota",
   setup(ctx) {
     const [state, setState] = createSignal(initial)
+    const bar = (remaining: number | null, unlimited = false) => {
+      if (unlimited) return <text>∞</text>
+      if (remaining === null) return <text>?</text>
+      const filled = Math.round(Math.max(0, Math.min(100, remaining)) / 10)
+      return <box flexDirection="row"><text fg={ctx.theme.text.base}>{"█".repeat(filled)}</text><text fg={ctx.theme.text.muted}>{"░".repeat(10 - filled)}</text></box>
+    }
     const poller = createPoller({
       baseUrl: typeof ctx.options.baseUrl === "string" ? ctx.options.baseUrl : process.env.OMNIROUTE_BASE_URL ?? "",
       apiKey: resolveApiKey(ctx.options.apiKey),
@@ -34,9 +38,14 @@ export default Plugin.define({
       append: "sidebar.content",
       render: () => <box flexDirection="column" paddingTop={1}>
         <text><strong>OmniRoute</strong> · {state().status}</text>
-        <For each={state().accounts ?? []}>{account =>
-          <text>{account.provider} [{shortId(account.id)}]: {summarizeQuotas(account.quotas)}</text>
-        }</For>
+        <For each={state().accounts ?? []}>{account => {
+          const limited = account.quotas.filter(quota => !quota.unlimited)
+          const known = limited.flatMap(quota => quota.remaining === null ? [] : [quota.remaining])
+          return <box flexDirection="column">
+            <text>{account.provider} [{shortId(account.id)}]: {account.quotas.length} квот</text>
+            <Show when={account.quotas.length > 0}><text>Мин. остаток{known.length > 0 && known.length < limited.length ? " + ?" : ""}:</text>{bar(known.length ? Math.min(...known) : null, limited.length === 0)}</Show>
+          </box>
+        }}</For>
         <text>/omni-quota — подробнее</text>
       </box>,
     })
@@ -46,13 +55,15 @@ export default Plugin.define({
       render: input => <Show when={input.name === "omni-quota"}>
         <box flexDirection="column" height="100%" backgroundColor={ctx.theme.background.base}>
           <text flexShrink={0}><strong>{`OmniRoute: ${state().status}`}</strong>{" · /omni-quota-refresh"}</text>
-          <text flexShrink={0}>Кеш OmniRoute · сырые проценты, не гарантия маршрута</text>
+          <text flexShrink={0}>Кеш OmniRoute · не гарантия маршрута</text>
           <Show when={state().updatedAt}>{time => <text flexShrink={0}>{`Получено плагином: ${new Date(time()).toLocaleString()}`}</text>}</Show>
           <scrollbox flexGrow={1} flexShrink={1}>
             <For each={state().accounts ?? []}>{account => <box flexDirection="column" paddingTop={1}>
               <text><strong>{accountName(account)}</strong></text>
               <For each={account.quotas}>{quota => <box flexDirection="column">
-                <text>{quota.name}: осталось {pct(quota)}; использовано {quota.used ?? "?"} / {quota.total ?? "?"}</text>
+                <text>{quota.name}: осталось</text>
+                {bar(quota.remaining, quota.unlimited)}
+                <text>Использовано {quota.used ?? "?"} / {quota.total ?? "?"}</text>
                 <text>Сброс: {reset(quota.resetAt)}</text>
               </box>}</For>
             </box>}</For>
