@@ -328,7 +328,7 @@ test("style options render real sidebar and details at both widths", async () =>
             await view.mockMouse.click(2, 1)
             await view.renderOnce()
             const collapsed = view.captureCharFrame()
-            expect(collapsed.split("\n").find(line => line.includes("⚙️"))!.trim()).toBe("⚙️ | CODEX | 0% | 80% |")
+            expect(collapsed.split("\n").find(line => line.includes("⚙️"))!.trim()).toBe("▶ ⚙️ | CODEX | 0% | 80% |")
             expect(collapsed).not.toMatch(/\d\d:\d\d:\d\d|Updated/)
             expect(collapsed).not.toContain("[")
             const headerSpans = view.captureSpans().lines.flatMap(line => line.spans)
@@ -370,7 +370,7 @@ test("collapsed summary uses the first displayed provider without fallback", asy
   const previousKey = process.env.OMNIROUTE_API_KEY
   process.env.OMNIROUTE_API_KEY = "test"
   try {
-    for (const [firstQuotas, expected] of [[{ session: { windowSeconds: 18000, used: 75, total: 100, remainingPercentage: 90 } }, "⚙️ | FIRST | 25% | — |"], [{ weekly: { windowSeconds: 604800, used: 5, total: 100 } }, "⚙️ | FIRST | — | 95% |"], [{ other: { remainingPercentage: 25 }, weekly: { windowSeconds: 604800, unlimited: true }, session: { windowSeconds: 18000, remaining: 25, total: 100 } }, "⚙️ | FIRST | — | — |"]] as const) {
+    for (const [firstQuotas, expected] of [[{ session: { windowSeconds: 18000, used: 75, total: 100, remainingPercentage: 90 } }, "▶ ⚙️ | FIRST | 25% | — |"], [{ weekly: { windowSeconds: 604800, used: 5, total: 100 } }, "▶ ⚙️ | FIRST | — | 95% |"], [{ other: { remainingPercentage: 25 }, weekly: { windowSeconds: 604800, unlimited: true }, session: { windowSeconds: 18000, remaining: 25, total: 100 } }, "▶ ⚙️ | FIRST | — | — |"]] as const) {
       const providers = [
         { connectionId: "z", provider: "second", quotas: { session: { windowSeconds: 18000, used: 10, total: 100, remainingPercentage: 90 }, weekly: { windowSeconds: 604800, used: 20, total: 100, remainingPercentage: 80 } } },
         { connectionId: "a", provider: "first", quotas: firstQuotas },
