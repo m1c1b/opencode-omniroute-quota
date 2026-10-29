@@ -64,7 +64,7 @@ test("panel renders and scrolls within its allocated dimensions", async () => {
   process.env.OMNIROUTE_API_KEY = "test"
   let panel: (input: { name: string }) => unknown = () => null
   let sidebar: (input: { name: string }) => unknown = () => null
-  const context = { options: { baseUrl: server.url.href }, theme: { background: { base: "#101010" }, text: { base: "#ffffff", muted: "#777777" } }, ui: { slot: (claim: { append: string; render: typeof panel }) => { if (claim.append === "session.panel") panel = claim.render; if (claim.append === "sidebar.content") sidebar = claim.render; return () => {} } }, keymap: { layer: () => {} } } as unknown as Plugin.Context
+  const context = { options: { baseUrl: server.url.href }, theme: { background: { base: "#101010" }, text: { base: "#ffffff", muted: "#777777", action: { primary: { base: "#ff8800" } } } }, ui: { slot: (claim: { append: string; render: typeof panel }) => { if (claim.append === "session.panel") panel = claim.render; if (claim.append === "sidebar.content") sidebar = claim.render; return () => {} } }, keymap: { layer: () => {} } } as unknown as Plugin.Context
   const stop = await plugin.setup(context)
   try {
     await Bun.sleep(50)
@@ -165,7 +165,7 @@ test("sidebar left-aligns numbered accounts under full-width provider rules", as
   const previousKey = process.env.OMNIROUTE_API_KEY
   process.env.OMNIROUTE_API_KEY = "test"
   let sidebar: (input: { name: string }) => unknown = () => null
-  const context = { options: { baseUrl: server.url.href }, theme: { background: { base: "#101010" }, text: { base: "#ffffff", muted: "#777777" } }, ui: { slot: (slot: { append: string, render: typeof sidebar }) => { if (slot.append === "sidebar.content") sidebar = slot.render; return () => {} } }, keymap: { layer: () => {} } } as unknown as Parameters<typeof plugin.setup>[0]
+  const context = { options: { baseUrl: server.url.href }, theme: { background: { base: "#101010" }, text: { base: "#ffffff", muted: "#777777", action: { primary: { base: "#ff8800" } } } }, ui: { slot: (slot: { append: string, render: typeof sidebar }) => { if (slot.append === "sidebar.content") sidebar = slot.render; return () => {} } }, keymap: { layer: () => {} } } as unknown as Parameters<typeof plugin.setup>[0]
   const stop = await plugin.setup(context)
   try {
     await Bun.sleep(50)
@@ -257,6 +257,7 @@ test("style options render real sidebar and details at both widths", async () =>
     { connectionId: "d", provider: "other", quotas: { model: { remainingPercentage: 50 } } },
     { connectionId: "e", provider: "weeklyonly", quotas: { weekly: { windowSeconds: 604800, remainingPercentage: 42 } } },
     { connectionId: "f", provider: "codex", quotas: { session: { windowSeconds: 18000, used: 100, total: 100, remainingPercentage: 0 } } },
+    ...Array.from({ length: 10 }, (_, i) => ({ connectionId: `number${i}`, provider: "numbers", quotas: { weekly: { windowSeconds: 604800, remainingPercentage: 50 } } })),
   ]
   const server = Bun.serve({ port: 0, fetch: request => new URL(request.url).pathname === "/api/providers" ? Response.json({ connections: providers.map(p => ({ id: p.connectionId, email: `${p.connectionId}@example.test` })) }) : Response.json({ allowed: true, providers }) })
   const previousKey = process.env.OMNIROUTE_API_KEY
@@ -265,17 +266,22 @@ test("style options render real sidebar and details at both widths", async () =>
     for (const style of [undefined, "bar-style", "percents-only-style", "invalid"]) {
       let sidebar: (input: { name: string }) => unknown = () => null
       let panel: (input: { name: string }) => unknown = () => null
-      const context = { options: { baseUrl: server.url.href, style }, theme: { background: { base: "#101010" }, text: { base: "#ffffff", muted: "#777777" } }, ui: { slot: (slot: { append?: string, replace?: string, render: typeof sidebar }) => { if (slot.append === "sidebar.content") sidebar = slot.render; if (slot.append === "session.panel") panel = slot.render; return () => {} } }, keymap: { layer: () => {} } } as unknown as Parameters<typeof plugin.setup>[0]
+      const context = { options: { baseUrl: server.url.href, style }, theme: { background: { base: "#101010" }, text: { base: "#ffffff", muted: "#777777", action: { primary: { base: "#ff8800" } } } }, ui: { slot: (slot: { append?: string, replace?: string, render: typeof sidebar }) => { if (slot.append === "sidebar.content") sidebar = slot.render; if (slot.append === "session.panel") panel = slot.render; return () => {} } }, keymap: { layer: () => {} } } as unknown as Parameters<typeof plugin.setup>[0]
       const stop = await plugin.setup(context)
       try {
         await Bun.sleep(50)
         for (const width of [32, 70]) {
-          const view = await testRender(() => sidebar({ name: "" }) as never, { width, height: 35 })
+          const view = await testRender(() => sidebar({ name: "" }) as never, { width, height: 70 })
           try {
             await view.renderOnce()
             await view.renderOnce()
             const frame = view.captureCharFrame()
+            const spans = view.captureSpans().lines.flatMap(line => line.spans)
+            const color = (text: string) => spans.find(span => span.text.includes(text))!.fg.toString()
+            expect(color("CODEX")).toBe(RGBA.fromHex("#ff8800").toString())
+            expect(frame).toContain("#1")
             if (style === "percents-only-style") {
+              expect(color("ACCOUNT")).toBe(RGBA.fromHex("#777777").toString())
               expect(frame).not.toMatch(/[█░]/)
               expect(frame).toContain("ACCOUNT")
               expect(frame).toContain("Gemini · session: ∞")
@@ -291,11 +297,21 @@ test("style options render real sidebar and details at both widths", async () =>
               const weeklyGroup = lines.findIndex(line => line.includes("WEEKLYONLY"))
               expect(lines[weeklyGroup + 1]).toContain("7d")
               expect(lines[weeklyGroup + 1]).not.toContain("5h")
+              const numbers = lines.findIndex(line => line.includes("NUMBERS"))
+              const numberHeader = lines[numbers + 1]
+              const tenth = lines.find(line => line.includes("#10"))!
+              expect(tenth).toContain("#10 ")
+              expect(tenth.indexOf("50%") + 3).toBe(numberHeader.indexOf("7d") + 2)
               expect(frame).toMatch(/b[^\n]*\n─+\n.*f/)
               expect(frame).not.toMatch(/long[^\n]*\n─+/)
               const walk = (node: Renderable): Renderable[] => [node, ...node.getChildren().flatMap(walk)]
               for (const node of walk(view.renderer.root)) expect(node.x + node.width).toBeLessThanOrEqual(width)
-            } else expect(frame).toMatch(/[█░]/)
+            } else {
+              expect(frame).toMatch(/[█░]/)
+              expect(color("7d")).toBe(RGBA.fromHex("#777777").toString())
+              expect(color("80%")).toBe(RGBA.fromHex("#ffffff").toString())
+              expect(color("█")).toBe(RGBA.fromHex("#ffffff").toString())
+            }
             await view.mockMouse.click(2, 1)
             await view.renderOnce()
             const collapsed = view.captureCharFrame()
@@ -341,7 +357,7 @@ test("collapsed summary uses the first displayed provider without fallback", asy
       ]
       const server = Bun.serve({ port: 0, fetch: request => new URL(request.url).pathname === "/api/providers" ? Response.json({ connections: [] }) : Response.json({ allowed: true, providers }) })
       let sidebar: (input: { name: string }) => unknown = () => null
-      const context = { options: { baseUrl: server.url.href }, theme: { background: { base: "#101010" }, text: { base: "#ffffff", muted: "#777777" } }, ui: { slot: (slot: { append?: string, render: typeof sidebar }) => { if (slot.append === "sidebar.content") sidebar = slot.render; return () => {} } }, keymap: { layer: () => {} } } as unknown as Parameters<typeof plugin.setup>[0]
+      const context = { options: { baseUrl: server.url.href }, theme: { background: { base: "#101010" }, text: { base: "#ffffff", muted: "#777777", action: { primary: { base: "#ff8800" } } } }, ui: { slot: (slot: { append?: string, render: typeof sidebar }) => { if (slot.append === "sidebar.content") sidebar = slot.render; return () => {} } }, keymap: { layer: () => {} } } as unknown as Parameters<typeof plugin.setup>[0]
       const stop = await plugin.setup(context)
       try {
         await Bun.sleep(50)

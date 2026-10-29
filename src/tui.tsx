@@ -65,9 +65,11 @@ export default Plugin.define({
     }
     const nameWidth = (show5h: boolean) => Math.max(7, sidebarWidth() - (show5h ? 17 : 10))
     const groupHas5h = (accounts: Account[]) => accounts.some(account => account.quotas.some(q => windowType(q) === "5h"))
-    const tableRow = (account: Account, index: number, show5h: boolean, agy: boolean) => {
+    const numberWidth = (accounts: Account[]) => Math.max(3, String(accounts.length).length + 2)
+    const tableRow = (account: Account, index: number, show5h: boolean, agy: boolean, numbers: number) => {
       const quota5h = account.quotas.find(q => windowType(q) === "5h")
-      return `${`${index + 1}`.padEnd(3)}${truncate(accountName(account), nameWidth(show5h)).padEnd(nameWidth(show5h))}${show5h ? ` ${(quota5h || agy ? percent(quota5h) : "").padStart(6)}` : ""} ${percent(account.quotas.find(q => windowType(q) === "7d")).padStart(6)}`
+      const width = nameWidth(show5h) - (numbers - 3)
+      return `${`#${index + 1}`.padEnd(numbers)}${truncate(accountName(account), width).padEnd(width)}${show5h ? ` ${(quota5h || agy ? percent(quota5h) : "").padStart(6)}` : ""} ${percent(account.quotas.find(q => windowType(q) === "7d")).padStart(6)}`
     }
     const summaryBar = (account: Account) => {
       const limited = account.quotas.filter(quota => !quota.unlimited)
@@ -95,20 +97,20 @@ export default Plugin.define({
         <text flexShrink={0} onMouseUp={() => setExpanded(!expanded())}><strong>{expanded() ? "▼" : "▶"} OmniRoute</strong>{expanded() ? ` · ${percentsOnly ? state().status : state().status === "ready" ? "Account quotas" : `Account quotas · ${state().status}`}` : `${summary() ? `  ${summary()}` : ""}${state().status !== "ready" ? ` · ${state().status}` : ""}`}</text>
         <Show when={expanded()}>
         <For each={groupAccounts(state().accounts ?? [])}>{(group, groupIndex) => <box width="100%" flexDirection="column" flexShrink={0} paddingTop={groupIndex() ? 2 : 0}>
-          <text height={1} flexShrink={0}><strong>{group.provider.toUpperCase()}</strong></text>
+          <text height={1} flexShrink={0} fg={ctx.theme.text.action.primary.base}><strong>{group.provider.toUpperCase()}</strong></text>
           <Show when={percentsOnly}>
-            <text wrapMode="none" fg={ctx.theme.text.muted}>{group.provider === "agy" ? "#  ACCOUNT / QUOTA" : `#  ${"ACCOUNT".padEnd(nameWidth(groupHas5h(group.accounts)))}${groupHas5h(group.accounts) ? ` ${"5h".padStart(6)}` : ""} ${"7d".padStart(6)}`}</text>
+            <text wrapMode="none" fg={ctx.theme.text.muted}>{group.provider === "agy" ? `${"#".padEnd(numberWidth(group.accounts))}ACCOUNT / QUOTA` : `${"#".padEnd(numberWidth(group.accounts))}${"ACCOUNT".padEnd(nameWidth(groupHas5h(group.accounts)) - (numberWidth(group.accounts) - 3))}${groupHas5h(group.accounts) ? ` ${"5h".padStart(6)}` : ""} ${"7d".padStart(6)}`}</text>
           </Show>
           <Show when={percentsOnly} fallback={<>
           <For each={group.accounts}>{(account, accountIndex) => <box width="100%" flexShrink={0} flexDirection="column">
               <Show when={accountIndex() > 0}><text fg={ctx.theme.text.muted}>{"─".repeat(sidebarWidth())}</text></Show>
-              <text wrapMode="none">{truncate(`${accountIndex() + 1}  ${accountName(account)}`, sidebarWidth())}</text>
+              <text wrapMode="none">{truncate(`#${accountIndex() + 1}  ${accountName(account)}`, sidebarWidth())}</text>
               <box flexDirection="column" paddingLeft={2}>
               <Show when={agyGroups(account).length} fallback={<Show when={hasWindows(account)} fallback={<>
                 <text wrapMode="none">{truncate(summarizeQuotas(account.quotas), contentWidth())}</text>
                 <text wrapMode="none">{summaryBar(account)}</text>
               </>}>
-                <For each={(["5h", "7d"] as const)}>{label => <Show when={label !== "5h" || account.quotas.some(item => windowType(item) === label)}><text wrapMode="none">{quotaRow(label, account.quotas.find(item => windowType(item) === label), 2)}</text></Show>}</For>
+                <For each={(["5h", "7d"] as const)}>{label => <Show when={label !== "5h" || account.quotas.some(item => windowType(item) === label)}><text wrapMode="none"><span style={{ fg: ctx.theme.text.muted }}>{label}</span>{quotaRow(label, account.quotas.find(item => windowType(item) === label), 2).slice(2)}</text></Show>}</For>
               </Show>}>
                 <For each={agyGroups(account)}>{quota => <text wrapMode="none">{quotaRow(agyLabel(quota).replace(" · ", " "), quota, Math.min(20, Math.max(10, contentWidth() - 12)))}</text>}</For>
               </Show>
@@ -117,7 +119,7 @@ export default Plugin.define({
           </>}>
             <For each={group.accounts}>{(account, accountIndex) => <box width="100%" flexShrink={0} flexDirection="column">
               <Show when={accountIndex() > 0}><text fg={ctx.theme.text.muted}>{"─".repeat(sidebarWidth())}</text></Show>
-              <text wrapMode="none">{agyGroups(account).length ? truncate(`${accountIndex() + 1}  ${accountName(account)}`, sidebarWidth()) : tableRow(account, accountIndex(), group.provider === "agy" || groupHas5h(group.accounts), group.provider === "agy")}</text>
+              <text wrapMode="none">{agyGroups(account).length ? truncate(`#${accountIndex() + 1}  ${accountName(account)}`, sidebarWidth()) : tableRow(account, accountIndex(), group.provider === "agy" || groupHas5h(group.accounts), group.provider === "agy", numberWidth(group.accounts))}</text>
               <Show when={agyGroups(account).length} fallback={<Show when={!hasWindows(account)}><text wrapMode="none">{truncate(`   ${summarizeQuotas(account.quotas)}`, sidebarWidth())}</text></Show>}>
                 <For each={agyGroups(account)}>{quota => <text wrapMode="none">{truncate(`   ${agyLabel(quota)}: ${percent(quota)}`, sidebarWidth())}</text>}</For>
               </Show>
