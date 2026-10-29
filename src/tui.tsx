@@ -24,6 +24,14 @@ function windowType(quota: Quota): "5h" | "7d" | null {
 
 const hasWindows = (account: Account) => account.quotas.some(quota => windowType(quota) !== null)
 const truncate = (value: string, width: number) => value.length > width ? `${value.slice(0, width - 1)}…` : value
+export const shaded = (value: number, width: number) => {
+  const amount = Math.max(0, Math.min(100, value)) * width / 100
+  if (amount === width) return "█".repeat(width)
+  if (amount === 0) return "░".repeat(width)
+  const full = Math.floor(amount)
+  const partial = "░▒▓█"[Math.max(1, Math.floor((amount - full) * 3))]
+  return "█".repeat(full) + partial + "░".repeat(width - full - 1)
+}
 
 function reset(value: string | null): string {
   if (!value) return "—"
@@ -38,23 +46,22 @@ export default Plugin.define({
     const [state, setState] = createSignal(initial)
     const [sidebarWidth, setSidebarWidth] = createSignal(32)
     const contentWidth = () => Math.max(1, sidebarWidth() - 2)
-    const barWidth = () => Math.max(1, contentWidth() - 8)
     const compactBar = (remaining: number | null, unlimited = false) => {
       if (unlimited) return "∞"
       if (remaining === null) return "?"
-      const filled = Math.round(Math.max(0, Math.min(100, remaining)) * barWidth() / 100)
-      return `${"█".repeat(filled)}${"░".repeat(barWidth() - filled)} ${remaining}%`
-    }
-    const compactWindow = (account: Account, label: "5h" | "7d") => {
-      const quota = account.quotas.find(item => windowType(item) === label)
-      if (!quota) return null
-      return compactBar(quota.remaining === null ? null : Math.round(quota.remaining * 100) / 100, quota.unlimited)
+      return `${shaded(remaining, Math.max(1, contentWidth() - 8))} ${remaining}%`
     }
     const agyGroups = (account: Account) => account.provider === "agy"
       ? account.quotas.filter(quota => quota.quotaAggregate && quota.quotaGroupId && quota.window)
       : []
     const agyLabel = (quota: Quota) => `${quota.quotaGroupId === "gemini" ? "Gemini" : quota.quotaGroupId === "claude_gpt" ? "Claude/GPT" : quota.quotaGroupId} · ${quota.window === "weekly" ? "weekly" : quota.window === "session" ? "session" : quota.window}`
     const percent = (quota: Quota | undefined) => !quota ? "—" : quota.unlimited ? "∞" : quota.remaining === null ? "?" : `${Math.round(quota.remaining * 100) / 100}%`
+    const quotaRow = (label: string, quota: Quota | undefined, labelWidth: number) => {
+      const value = percent(quota)
+      const width = Math.max(1, contentWidth() - labelWidth - 8)
+      const bar = quota && !quota.unlimited && quota.remaining !== null ? shaded(quota.remaining, width) : "░".repeat(width)
+      return `${truncate(label, labelWidth).padEnd(labelWidth)} ${bar} ${value.padStart(6)}`
+    }
     const nameWidth = () => Math.max(7, sidebarWidth() - 17)
     const tableRow = (account: Account, index: number) => `${`${index + 1}`.padEnd(3)}${truncate(accountName(account), nameWidth()).padEnd(nameWidth())} ${percent(account.quotas.find(q => windowType(q) === "5h")).padStart(6)} ${percent(account.quotas.find(q => windowType(q) === "7d")).padStart(6)}`
     const summaryBar = (account: Account) => {
@@ -65,8 +72,7 @@ export default Plugin.define({
     const bar = (remaining: number | null, unlimited = false) => {
       if (unlimited) return <text>∞</text>
       if (remaining === null) return <text>?</text>
-      const filled = Math.round(Math.max(0, Math.min(100, remaining)) / 10)
-      return <box flexDirection="row"><text fg={ctx.theme.text.base} width={filled}>{"█".repeat(filled)}</text><text fg={ctx.theme.text.muted} width={10 - filled}>{"░".repeat(10 - filled)}</text><text> {remaining}%</text></box>
+      return <text>{shaded(remaining, 10)} {remaining}%</text>
     }
     const poller = createPoller({
       baseUrl: typeof ctx.options.baseUrl === "string" ? ctx.options.baseUrl : process.env.OMNIROUTE_BASE_URL ?? "",
@@ -81,23 +87,26 @@ export default Plugin.define({
         let sidebar!: BoxRenderable
         onMount(() => setSidebarWidth(sidebar.width))
         return <box ref={sidebar} flexDirection="column" width="100%" paddingTop={1} onSizeChange={function () { setSidebarWidth(this.width) }}>
-        <text height={1} flexShrink={0}><strong>OmniRoute</strong> · {state().status}</text>
+        <text height={1} flexShrink={0}><strong>OmniRoute</strong> · {percentsOnly ? state().status : state().status === "ready" ? "Account quotas" : `Account quotas · ${state().status}`}</text>
         <For each={groupAccounts(state().accounts ?? [])}>{(group, groupIndex) => <box width="100%" flexDirection="column" flexShrink={0} paddingTop={groupIndex() ? 2 : 0}>
           <text height={1} flexShrink={0}><strong>{group.provider.toUpperCase()}</strong></text>
-          <Show when={percentsOnly} fallback={<text height={1} flexShrink={0} fg={ctx.theme.text.muted}>{"─".repeat(sidebarWidth())}</text>}>
+          <Show when={percentsOnly}>
             <text wrapMode="none" fg={ctx.theme.text.muted}>{group.provider === "agy" ? "#  ACCOUNT / QUOTA" : `#  ${"ACCOUNT".padEnd(nameWidth())} ${"5h".padStart(6)} ${"7d".padStart(6)}`}</text>
           </Show>
           <Show when={percentsOnly} fallback={<>
-          <For each={group.accounts}>{(account, accountIndex) => <box width="100%" flexShrink={0} flexDirection="column" paddingLeft={2} paddingTop={accountIndex() ? 1 : 0}>
-              <text wrapMode="none">{truncate(`${accountIndex() + 1}. ${accountName(account)}`, contentWidth())}</text>
+          <For each={group.accounts}>{(account, accountIndex) => <box width="100%" flexShrink={0} flexDirection="column">
+              <Show when={accountIndex() > 0}><text fg={ctx.theme.text.muted}>{"─".repeat(sidebarWidth())}</text></Show>
+              <text wrapMode="none">{truncate(`${accountIndex() + 1}  ${accountName(account)}`, sidebarWidth())}</text>
+              <box flexDirection="column" paddingLeft={2}>
               <Show when={agyGroups(account).length} fallback={<Show when={hasWindows(account)} fallback={<>
                 <text wrapMode="none">{truncate(summarizeQuotas(account.quotas), contentWidth())}</text>
                 <text wrapMode="none">{summaryBar(account)}</text>
               </>}>
-                <For each={(["5h", "7d"] as const).filter(label => compactWindow(account, label) !== null)}>{(label, index) => <><Show when={index() > 0}><text height={1}> </text></Show><text wrapMode="none">{compactWindow(account, label)} {label}</text></>}</For>
+                <For each={(["5h", "7d"] as const)}>{label => <text wrapMode="none">{quotaRow(label, account.quotas.find(item => windowType(item) === label), 2)}</text>}</For>
               </Show>}>
-                <For each={agyGroups(account)}>{quota => <><text wrapMode="none">{truncate(agyLabel(quota), contentWidth())}</text><text wrapMode="none">{compactBar(quota.remaining === null ? null : Math.round(quota.remaining * 100) / 100, quota.unlimited)}</text></>}</For>
+                <For each={agyGroups(account)}>{quota => <text wrapMode="none">{quotaRow(agyLabel(quota).replace(" · ", " "), quota, Math.min(20, Math.max(10, contentWidth() - 12)))}</text>}</For>
               </Show>
+              </box>
           </box>}</For>
           </>}>
             <For each={group.accounts}>{(account, accountIndex) => <box width="100%" flexShrink={0} flexDirection="column">

@@ -41,6 +41,12 @@ Use a `file://` URL pointing to the absolute path of the checkout instead of the
 
 ## Options
 
+The default `bar-style` shows each account's quota windows as shaded bars, with
+labels on the left and percentages on the right. Missing windows show `—` and
+an empty bar. Unknown values show `?`, and unlimited quotas show `∞`. Antigravity
+groups use their actual model and window labels. Long labels may be shortened in
+narrow sidebars. Bars use the [ascii-bar Shaded character set](https://github.com/tbremer/ascii-bar).
+
 All options belong in the plugin entry's `options` object.
 
 | Option | Default | Description |

@@ -4,6 +4,22 @@ import { insert, testRender, useRenderer } from "@opentui/solid"
 import { BoxRenderable, RGBA, ScrollBoxRenderable, type Renderable } from "@opentui/core"
 import type { Plugin } from "@opencode/plugin/tui"
 
+test("Shaded matches ascii-bar partial fill levels", async () => {
+  const result = await Bun.build({ entrypoints: ["src/tui.tsx"], target: "bun", external: ["@opencode/plugin/tui", "@opentui/solid", "solid-js"], plugins: [createSolidTransformPlugin()] })
+  const file = Bun.file(`${import.meta.dir}/../dist/render-shaded-test.js`)
+  await Bun.write(file, result.outputs[0])
+  try {
+    const { shaded } = await import(new URL("../dist/render-shaded-test.js", import.meta.url).href)
+    expect(shaded(0, 10)).toBe("░░░░░░░░░░")
+    expect(shaded(5, 10)).toBe("▒░░░░░░░░░")
+    expect(shaded(8, 10)).toBe("▓░░░░░░░░░")
+    expect(shaded(50, 10)).toBe("█████▒░░░░")
+    expect(shaded(96, 10)).toBe("█████████▒")
+    expect(shaded(98, 10)).toBe("█████████▓")
+    expect(shaded(100, 10)).toBe("██████████")
+  } finally { await file.delete() }
+})
+
 test("panel renders and scrolls within its allocated dimensions", async () => {
   const result = await Bun.build({ entrypoints: ["src/tui.tsx"], target: "bun", external: ["@opencode/plugin/tui", "@opentui/solid", "solid-js"], plugins: [createSolidTransformPlugin()] })
   const file = Bun.file(`${import.meta.dir}/../dist/render-test.js`)
@@ -50,7 +66,7 @@ test("panel renders and scrolls within its allocated dimensions", async () => {
         }
         scroll.scrollTo(4)
         await view.renderOnce()
-        expect(view.captureCharFrame()).toContain("█████░░░░░ 50%")
+        expect(view.captureCharFrame()).toContain("█████▒░░░░ 50%")
         expect(view.captureCharFrame()).toContain("██████████ 100%")
         scroll.scrollTo(12)
         await view.renderOnce()
@@ -138,17 +154,14 @@ test("sidebar left-aligns numbered accounts under full-width provider rules", as
         expect(frame).not.toMatch(/[┌┐└┘│]/)
         expect(lines.find(line => line.startsWith("─"))).toContain("─".repeat(width - 1))
         expect(frame).toContain("longusername")
-        expect(frame).toContain("60% 5h")
-        expect(frame).toContain("80% 7d")
-        expect(frame).toContain("? 5h")
-        expect(frame).toContain("∞ 7d")
+        expect(frame).toMatch(/5h [█░▒▓]+\s+60%/)
+        expect(frame).toMatch(/7d [█░▒▓]+\s+80%/)
+        expect(frame).toMatch(/5h [░]+\s+\?/)
+        expect(frame).toMatch(/7d [░]+\s+∞/)
         expect(lines.find(line => line.includes("CODEX"))!.startsWith("CODEX")).toBe(true)
-        ;["1. a", "2. c", "3. longusername", "60% 5h", "80% 7d", "? 5h", "∞ 7d"].forEach(text => {
-          expect(lines.find(line => line.includes(text))!.startsWith("  ")).toBe(true)
-        })
-        const bars = lines.filter(line => /[█░]+ \d+% [57][hd]/.test(line))
-        expect(new Set(bars.map(line => line.match(/[█░]+/)![0].length)).size).toBe(1)
-        expect(bars[0].match(/[█░]+/)![0].length).toBeGreaterThan(10)
+        const bars = lines.filter(line => /[57][hd] [█░▒▓]+/.test(line))
+        expect(new Set(bars.map(line => line.match(/[█░▒▓]+/)![0].length)).size).toBe(1)
+        expect(bars[0].match(/[█░▒▓]+/)![0].length).toBeGreaterThan(10)
         expect(frame).not.toContain("example.test")
         expect(container.width).toBe(width)
         let allFrames = frame
@@ -157,20 +170,16 @@ test("sidebar left-aligns numbered accounts under full-width provider rules", as
           await view.renderOnce()
           allFrames += view.captureCharFrame()
         }
-        for (const name of ["1. a", "2. c", "3. longusername", "1. d"]) expect(allFrames).toContain(name)
-        expect(allFrames).toContain("Gemini · weekly")
-        expect(allFrames).toContain("Gemini · session")
-        expect(allFrames).toContain("Claude/GPT · weekly")
+        for (const name of ["1  a", "2  c", "3  longusername", "1  d"]) expect(allFrames).toContain(name)
+        expect(allFrames).toContain("Gemini weekly")
+        expect(allFrames).toContain("Gemini session")
+        expect(allFrames).toContain(width === 32 ? "Claude/GPT weekly" : "Claude/GPT weekly")
         expect(allFrames).toContain("25%")
         expect(allFrames).not.toContain("4 quotas · min.")
         expect(allFrames).not.toContain("example.test")
         expect(frame.match(/CODEX/g)?.length).toBe(1)
         expect(allFrames).toContain("AGY")
-        expect(allFrames).toMatch(new RegExp(`AGY[^\n]*\n─{${width - 1}}`))
-        expect(allFrames).toMatch(/3\. longusername[^\n]*\n[^\n]*60% 5h[^\n]*\n\s*\n[^\n]*80% 7d/)
-        const fiveHour = lines.findIndex(line => line.includes("60% 5h"))
-        expect(lines[fiveHour + 1].slice(1, width - 2).trim()).toBe("")
-        expect(lines[fiveHour + 2]).toContain("80% 7d")
+        expect(allFrames).toMatch(/3  longusername[^\n]*\n[^\n]*5h [^\n]*60%[^\n]*\n[^\n]*7d [^\n]*80%/)
         const walk = (node: Renderable): Renderable[] => [node, ...node.getChildren().flatMap(walk)]
         for (const node of walk(view.renderer.root)) {
           expect(node.x + node.width).toBeLessThanOrEqual(width)
@@ -181,11 +190,11 @@ test("sidebar left-aligns numbered accounts under full-width provider rules", as
           await view.renderOnce()
           await view.renderOnce()
           expect(container.width).toBe(70)
-          expect(view.captureCharFrame().split("\n").find(line => line.includes("1. a"))).not.toContain("2. c")
+          expect(view.captureCharFrame().split("\n").find(line => line.includes("1  a"))).not.toContain("2  c")
           view.resize(32, 18)
           await view.renderOnce()
           await view.renderOnce()
-          expect(view.captureCharFrame().split("\n").find(line => line.includes("1. a"))).not.toContain("2. c")
+          expect(view.captureCharFrame().split("\n").find(line => line.includes("1  a"))).not.toContain("2  c")
         }
       } finally { await view.dispose() }
     }
