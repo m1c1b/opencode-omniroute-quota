@@ -11,6 +11,16 @@ test("preserves raw quota keys and window duration", () => {
   expect(account.quotas[0]).toMatchObject({ key: "session", name: "Weekly", windowSeconds: 604800 })
 })
 
+test("preserves explicit AGY aggregate metadata and individual models", () => {
+  const [account] = parseResponse({ allowed: true, providers: [{ connectionId: "a", provider: "agy", quotas: {
+    gemini_weekly: { quotaGroupId: "gemini", quotaAggregate: true, window: "weekly", remainingPercentage: 25 },
+    "gemini-model": { remainingPercentage: 12 },
+  } }] })
+  expect(account.quotas).toHaveLength(2)
+  expect(account.quotas[0]).toMatchObject({ quotaGroupId: "gemini", quotaAggregate: true, window: "weekly", remaining: 25 })
+  expect(account.quotas[1].quotaAggregate).toBe(false)
+})
+
 test("groups accounts by provider without losing order", () => {
   const accounts = ["a", "b", "a"].map((provider, i) => ({ id: String(i), provider, plan: "", quotas: [] }))
   expect(groupAccounts(accounts).map(group => [group.provider, group.accounts.map(account => account.id)])).toEqual([["a", ["0", "2"]], ["b", ["1"]]])

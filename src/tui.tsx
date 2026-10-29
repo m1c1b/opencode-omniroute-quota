@@ -49,6 +49,10 @@ export default Plugin.define({
       if (!quota) return null
       return compactBar(quota.remaining === null ? null : Math.round(quota.remaining * 100) / 100, quota.unlimited)
     }
+    const agyGroups = (account: Account) => account.provider === "agy"
+      ? account.quotas.filter(quota => quota.quotaAggregate && quota.quotaGroupId && quota.window)
+      : []
+    const agyLabel = (quota: Quota) => `${quota.quotaGroupId === "gemini" ? "Gemini" : quota.quotaGroupId === "claude_gpt" ? "Claude/GPT" : quota.quotaGroupId} · ${quota.window === "weekly" ? "неделя" : quota.window === "session" ? "сессия" : quota.window}`
     const summaryBar = (account: Account) => {
       const limited = account.quotas.filter(quota => !quota.unlimited)
       const known = limited.flatMap(quota => quota.remaining === null ? [] : [quota.remaining])
@@ -79,11 +83,13 @@ export default Plugin.define({
           <text height={1} flexShrink={0} fg={ctx.theme.text.muted}>{"─".repeat(sidebarWidth())}</text>
           <For each={group.accounts}>{(account, accountIndex) => <box width="100%" flexShrink={0} flexDirection="column" paddingLeft={2} paddingTop={accountIndex() ? 1 : 0}>
               <text wrapMode="none">{truncate(`${accountIndex() + 1}. ${accountName(account)}`, contentWidth())}</text>
-              <Show when={hasWindows(account)} fallback={<>
+              <Show when={agyGroups(account).length} fallback={<Show when={hasWindows(account)} fallback={<>
                 <text wrapMode="none">{truncate(summarizeQuotas(account.quotas), contentWidth())}</text>
                 <text wrapMode="none">{summaryBar(account)}</text>
               </>}>
                 <For each={(["5ч", "7д"] as const).filter(label => compactWindow(account, label) !== null)}>{(label, index) => <><Show when={index() > 0}><text height={1}> </text></Show><text wrapMode="none">{compactWindow(account, label)} {label}</text></>}</For>
+              </Show>}>
+                <For each={agyGroups(account)}>{quota => <><text wrapMode="none">{truncate(agyLabel(quota), contentWidth())}</text><text wrapMode="none">{compactBar(quota.remaining === null ? null : Math.round(quota.remaining * 100) / 100, quota.unlimited)}</text></>}</For>
               </Show>
           </box>}</For>
         </box>}</For>

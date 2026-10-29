@@ -2,6 +2,9 @@ export interface Quota {
   name: string
   key?: string
   windowSeconds?: number | null
+  quotaGroupId?: string
+  quotaAggregate?: boolean
+  window?: string
   remaining: number | null
   used: number | null
   total: number | null
@@ -49,6 +52,9 @@ function parseAccount(value: unknown): Account {
         name: text(quota.displayName) || name,
         key: name,
         windowSeconds: number(quota.windowSeconds),
+        quotaGroupId: text(quota.quotaGroupId),
+        quotaAggregate: quota.quotaAggregate === true,
+        window: text(quota.window),
         remaining: percentage(quota),
         used: number(quota.used),
         total: number(quota.total),

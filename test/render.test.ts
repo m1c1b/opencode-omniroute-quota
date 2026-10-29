@@ -107,7 +107,7 @@ test("sidebar left-aligns numbered accounts under full-width provider rules", as
     { connectionId: "a", provider: "codex", quotas: { session: { windowSeconds: 604800, remainingPercentage: 80 } } },
     { connectionId: "longusername", provider: "codex", quotas: { session: { displayName: "session (5h)", remainingPercentage: 60 }, weekly: { displayName: "weekly (7d)", remainingPercentage: 80 } } },
     { connectionId: "c", provider: "codex", quotas: { session: { windowSeconds: 18000 }, weekly: { unlimited: true } } },
-    { connectionId: "d", provider: "agy", quotas: { model: { remainingPercentage: 40 } } },
+    { connectionId: "d", provider: "agy", quotas: { model: { remainingPercentage: 40 }, gemini_weekly: { quotaGroupId: "gemini", quotaAggregate: true, window: "weekly", remainingPercentage: 25 }, gemini_session: { quotaGroupId: "gemini", quotaAggregate: true, window: "session", unlimited: true }, claude_gpt_weekly: { quotaGroupId: "claude_gpt", quotaAggregate: true, window: "weekly" } } },
   ]
   const server = Bun.serve({ port: 0, fetch: request => new URL(request.url).pathname === "/api/providers" ? Response.json({ connections: providers.map(p => ({ id: p.connectionId, email: `${p.connectionId}@example.test` })) }) : Response.json({ allowed: true, providers }) })
   const previousKey = process.env.OMNIROUTE_API_KEY
@@ -158,7 +158,11 @@ test("sidebar left-aligns numbered accounts under full-width provider rules", as
           allFrames += view.captureCharFrame()
         }
         for (const name of ["1. a", "2. c", "3. longusername", "1. d"]) expect(allFrames).toContain(name)
-        expect(allFrames).toContain("1 квот · мин. 40%")
+        expect(allFrames).toContain("Gemini · неделя")
+        expect(allFrames).toContain("Gemini · сессия")
+        expect(allFrames).toContain("Claude/GPT · неделя")
+        expect(allFrames).toContain("25%")
+        expect(allFrames).not.toContain("4 квот · мин.")
         expect(allFrames).not.toContain("example.test")
         expect(frame.match(/CODEX/g)?.length).toBe(1)
         expect(allFrames).toContain("AGY")
