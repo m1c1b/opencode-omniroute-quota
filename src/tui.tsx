@@ -36,17 +36,24 @@ export default Plugin.define({
   setup(ctx) {
     const [state, setState] = createSignal(initial)
     const [sidebarWidth, setSidebarWidth] = createSignal(32)
-    const barWidth = () => sidebarWidth() >= 45 ? 5 : 1
-    const columnWidth = () => barWidth() + 9
-    const nameWidth = () => Math.max(8, sidebarWidth() - 3 - 2 * columnWidth())
+    const columns = () => sidebarWidth() >= 60 ? 2 : 1
+    const cardWidth = () => Math.floor((sidebarWidth() - (columns() - 1)) / columns())
+    const barWidth = () => Math.max(1, Math.min(10, cardWidth() - 16))
+    const compactBar = (remaining: number | null, unlimited = false) => {
+      if (unlimited) return "∞"
+      if (remaining === null) return "?"
+      const filled = Math.round(Math.max(0, Math.min(100, remaining)) * barWidth() / 100)
+      return `${"█".repeat(filled)}${"░".repeat(barWidth() - filled)} ${remaining}%`
+    }
     const compactWindow = (account: Account, label: "5ч" | "7д") => {
       const quota = account.quotas.find(item => windowType(item) === label)
-      if (!quota) return "—"
-      if (quota.unlimited) return "∞"
-      if (quota.remaining === null) return "?"
-      const value = Math.round(quota.remaining * 100) / 100
-      const filled = Math.round(Math.max(0, Math.min(100, value)) * barWidth() / 100)
-      return `${"█".repeat(filled)}${"░".repeat(barWidth() - filled)} ${value}%`
+      if (!quota) return null
+      return compactBar(quota.remaining === null ? null : Math.round(quota.remaining * 100) / 100, quota.unlimited)
+    }
+    const summaryBar = (account: Account) => {
+      const limited = account.quotas.filter(quota => !quota.unlimited)
+      const known = limited.flatMap(quota => quota.remaining === null ? [] : [quota.remaining])
+      return compactBar(known.length ? Math.min(...known) : null, account.quotas.length > 0 && !limited.length)
     }
     const bar = (remaining: number | null, unlimited = false) => {
       if (unlimited) return <text>∞</text>
@@ -67,21 +74,22 @@ export default Plugin.define({
         let sidebar!: BoxRenderable
         onMount(() => setSidebarWidth(sidebar.width))
         return <box ref={sidebar} flexDirection="column" width="100%" paddingTop={1} onSizeChange={function () { setSidebarWidth(this.width) }}>
-        <text><strong>OmniRoute</strong> · {state().status}</text>
-        <For each={groupAccounts(state().accounts ?? [])}>{group => <box flexDirection="column">
-          <text><strong>{group.provider}</strong></text>
-          <For each={[true, false].filter(windows => group.accounts.some(account => hasWindows(account) === windows))}>{windows => <box flexDirection="column">
-            <box flexDirection="row" paddingLeft={1}>
-              <text fg={ctx.theme.text.muted} width={nameWidth() + 1}>Аккаунт</text>
-              <text fg={ctx.theme.text.muted} width={windows ? columnWidth() : undefined}>{windows ? "5ч" : "Квоты · мин."}</text>
-              <text fg={ctx.theme.text.muted}>{windows ? "7д" : ""}</text>
-            </box>
-            <For each={group.accounts.filter(account => hasWindows(account) === windows)}>{account => <box flexDirection="row" paddingLeft={1}>
-              <text width={nameWidth() + 1} wrapMode="none">{truncate(accountName(account), nameWidth())}</text>
-              <text width={windows ? columnWidth() : Math.max(0, sidebarWidth() - nameWidth() - 2)} wrapMode="none">{windows ? compactWindow(account, "5ч") : summarizeQuotas(account.quotas)}</text>
-              <For each={windows ? [account] : []}>{item => <text width={columnWidth()} wrapMode="none">{compactWindow(item, "7д")}</text>}</For>
+        <text height={1} flexShrink={0}><strong>OmniRoute</strong> · {state().status}</text>
+        <For each={groupAccounts(state().accounts ?? [])}>{group => <box flexDirection="column" flexShrink={0}>
+          <text height={1} flexShrink={0}><strong>{group.provider}</strong></text>
+          <text height={1} flexShrink={0} fg={ctx.theme.text.muted}>{"─".repeat(sidebarWidth())}</text>
+          <For each={Array.from({ length: Math.ceil(group.accounts.length / columns()) }, (_, i) => group.accounts.slice(i * columns(), (i + 1) * columns()))}>{row => <box flexDirection="row" height={5} flexShrink={0} gap={1}>
+            <For each={row}>{account => <box width={cardWidth()} height={5} flexShrink={0} border borderStyle="rounded" borderColor={ctx.theme.text.muted} flexDirection="column">
+              <text wrapMode="none">{truncate(accountName(account), Math.max(1, cardWidth() - 2))}</text>
+              <Show when={hasWindows(account)} fallback={<>
+                <text wrapMode="none">{truncate(summarizeQuotas(account.quotas), Math.max(1, cardWidth() - 2))}</text>
+                <text wrapMode="none">{summaryBar(account)}</text>
+              </>}>
+                <For each={(["5ч", "7д"] as const).filter(label => compactWindow(account, label) !== null)}>{label => <text wrapMode="none">{compactWindow(account, label)} {label}</text>}</For>
+              </Show>
             </box>}</For>
           </box>}</For>
+          <text height={1} flexShrink={0} fg={ctx.theme.text.muted}>{"─".repeat(sidebarWidth())}</text>
         </box>}</For>
         <text>/omni-quota — подробнее</text>
       </box>},

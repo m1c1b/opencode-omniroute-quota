@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import { createSolidTransformPlugin } from "@opentui/solid/bun-plugin"
-import { testRender } from "@opentui/solid"
+import { insert, testRender, useRenderer } from "@opentui/solid"
 import { BoxRenderable, RGBA, ScrollBoxRenderable, type Renderable } from "@opentui/core"
 import type { Plugin } from "@opencode/plugin/tui"
 
@@ -77,6 +77,7 @@ test("panel renders and scrolls within its allocated dimensions", async () => {
       const side = await testRender(() => sidebar({ name: "" }) as never, { width, height: 18 })
       try {
         await side.renderOnce()
+        await side.renderOnce()
         expect(side.captureCharFrame()).toContain("12 квот · мин. 0% + ?")
         expect(side.captureCharFrame()).toContain("user0")
         expect(side.captureCharFrame()).toContain("user1")
@@ -98,7 +99,7 @@ test("panel renders and scrolls within its allocated dimensions", async () => {
   }
 })
 
-test("sidebar renders quota windows on one account line at narrow and wide widths", async () => {
+test("sidebar renders rounded account cards at narrow and wide widths", async () => {
   const result = await Bun.build({ entrypoints: ["src/tui.tsx"], target: "bun", external: ["@opencode/plugin/tui", "@opentui/solid", "solid-js"], plugins: [createSolidTransformPlugin()] })
   await Bun.write(`${import.meta.dir}/../dist/render-windows-test.js`, result.outputs[0])
   const plugin: Plugin.Definition = (await import(new URL("../dist/render-windows-test.js", import.meta.url).href)).default
@@ -117,32 +118,60 @@ test("sidebar renders quota windows on one account line at narrow and wide width
   try {
     await Bun.sleep(50)
     for (const width of [32, 70]) {
-      const view = await testRender(() => sidebar({ name: "" }) as never, { width, height: 15 })
+      let container!: BoxRenderable
+      let scroll!: ScrollBoxRenderable
+      const view = await testRender(() => {
+        const renderer = useRenderer()
+        container = new BoxRenderable(renderer, { width: "100%", height: "100%" })
+        scroll = new ScrollBoxRenderable(renderer, { width: "100%", height: "100%", scrollX: false })
+        container.add(scroll)
+        insert(scroll, () => sidebar({ name: "" }) as never)
+        return container as never
+      }, { width, height: 18 })
       try {
         await view.renderOnce()
+        await Bun.sleep(20)
         await view.renderOnce()
         const frame = view.captureCharFrame()
         const lines = frame.split("\n")
-        console.log(`FRAME ${width}\n${frame}`)
-        const header = lines.find(line => line.includes("Аккаунт") && line.includes("5ч"))!
-        const weekly = lines.find(line => line.trimStart().startsWith("a "))!
-        const both = lines.find(line => line.trimStart().startsWith("longuser"))!
-        const unknown = lines.find(line => line.trimStart().startsWith("c "))!
-        expect(weekly.indexOf("—")).toBe(header.indexOf("5ч"))
-        expect(weekly.indexOf("█")).toBe(header.indexOf("7д"))
-        expect(both.indexOf("█")).toBe(header.indexOf("5ч"))
-        expect(both.indexOf("80%")).toBe(weekly.indexOf("80%"))
-        expect(both).toContain(header.indexOf("5ч") > 15 ? "longusername" : "longuser…")
-        expect(both).toContain(header.indexOf("5ч") > 15 ? "███░░ 60%" : "█ 60%")
-        expect(unknown.indexOf("?")).toBe(header.indexOf("5ч"))
-        expect(unknown.indexOf("∞")).toBe(header.indexOf("7д"))
-        expect(lines.find(line => line.includes("d "))).toContain("1 квот · мин. 40%")
+        expect(frame).toContain("╭")
+        expect(frame).toContain("╯")
+        expect(frame).toContain("longusername")
+        expect(frame).toContain("60% 5ч")
+        expect(frame).toContain("80% 7д")
+        expect(frame).toContain("? 5ч")
+        expect(frame).toContain("∞ 7д")
+        const accountLine = lines.find(line => line.includes("│a "))!
+        expect(accountLine.includes("│c ")).toBe(width === 70)
         expect(frame).not.toContain("example.test")
+        expect(container.width).toBe(width)
+        expect(scroll.scrollHeight).toBeGreaterThan(scroll.height)
+        let allFrames = frame
+        for (let offset = 0; offset <= scroll.scrollHeight; offset += 5) {
+          scroll.scrollTo(offset)
+          await view.renderOnce()
+          allFrames += view.captureCharFrame()
+        }
+        for (const name of ["a", "c", "longusername", "d"]) expect(allFrames).toContain(`│${name} `)
+        expect(allFrames).toContain("1 квот · мин. 40%")
+        expect(allFrames).not.toContain("example.test")
         expect(frame.match(/codex/g)?.length).toBe(1)
-        expect(frame).toContain("agy")
+        expect(allFrames).toContain("agy")
         const walk = (node: Renderable): Renderable[] => [node, ...node.getChildren().flatMap(walk)]
         for (const node of walk(view.renderer.root)) {
           expect(node.x + node.width).toBeLessThanOrEqual(width)
+        }
+        if (width === 32) {
+          view.resize(70, 18)
+          scroll.scrollTo(0)
+          await view.renderOnce()
+          await view.renderOnce()
+          expect(container.width).toBe(70)
+          expect(view.captureCharFrame().split("\n").find(line => line.includes("│a "))).toContain("│c ")
+          view.resize(32, 18)
+          await view.renderOnce()
+          await view.renderOnce()
+          expect(view.captureCharFrame().split("\n").find(line => line.includes("│a "))).not.toContain("│c ")
         }
       } finally { await view.dispose() }
     }

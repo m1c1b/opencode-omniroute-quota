@@ -10,7 +10,7 @@
     "build": "bun build.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src test",
-    "test": "bun test"
+    "test": "bun --conditions=browser test"
   },
   "devDependencies": {
     "@opencode/plugin": "2.1.0",
