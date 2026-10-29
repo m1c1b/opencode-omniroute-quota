@@ -4,6 +4,14 @@ import { insert, testRender, useRenderer } from "@opentui/solid"
 import { BoxRenderable, RGBA, ScrollBoxRenderable, type Renderable } from "@opentui/core"
 import type { Plugin } from "@opencode/plugin/tui"
 import { createRoot } from "solid-js"
+import { maskAccountName } from "../src/tui"
+
+test("account masks contain ten code points without overlapping short names", () => {
+  for (const [name, masked] of [["11company08", "11co****08"], ["pupa67", "pupa****67"], ["abcde", "abcd*****e"], ["a", "a*********"], ["", "**********"], ["😀😁😂🤣😃😄", "😀😁😂🤣****😃😄"]]) {
+    expect(maskAccountName(name)).toBe(masked)
+    expect(Array.from(maskAccountName(name))).toHaveLength(10)
+  }
+})
 
 test("Escape closes only the quota panel and slots are removed", async () => {
   const result = await Bun.build({ entrypoints: ["src/tui.tsx"], target: "bun", external: ["@opencode/plugin/tui", "@opentui/solid", "solid-js"], plugins: [createSolidTransformPlugin()] })
@@ -130,8 +138,8 @@ test("panel renders and scrolls within its allocated dimensions", async () => {
         await side.renderOnce()
         await side.renderOnce()
         expect(side.captureCharFrame()).toContain("12 quotas · min. 0% + ?")
-        expect(side.captureCharFrame()).toContain("user0")
-        expect(side.captureCharFrame()).toContain("user1")
+        expect(side.captureCharFrame()).toContain("user*****0")
+        expect(side.captureCharFrame()).toContain("user*****1")
         expect(side.captureCharFrame()).not.toContain("example.test")
         expect(side.captureCharFrame().match(/PROVIDER0/g)?.length).toBe(1)
         const walk = (node: Renderable): Renderable[] => [node, ...node.getChildren().flatMap(walk)]
@@ -189,7 +197,8 @@ test("sidebar left-aligns numbered accounts under full-width provider rules", as
         expect(frame).not.toMatch(/[╭╮╰╯]/)
         expect(frame).not.toMatch(/[┌┐└┘│]/)
         expect(lines.find(line => line.startsWith("─"))).toContain("─".repeat(width - 1))
-        expect(frame).toContain("longusername")
+        expect(frame).toContain("long****me")
+        expect(frame).not.toContain("longusername")
         expect(frame).toMatch(/5h [█░▒▓]+\s+60%/)
         expect(frame).toMatch(/7d [█░▒▓]+\s+80%/)
         expect(frame).toMatch(/5h [░]+\s+\?/)
@@ -207,7 +216,7 @@ test("sidebar left-aligns numbered accounts under full-width provider rules", as
           await view.renderOnce()
           allFrames += view.captureCharFrame()
         }
-        for (const name of ["1  a", "2  c", "3  longusername", "1  d"]) expect(allFrames).toContain(name)
+        for (const name of ["1  a*********", "2  c*********", "3  long****me", "1  d*********"]) expect(allFrames).toContain(name)
         expect(allFrames).toContain("Gemini weekly")
         expect(allFrames).toContain("Gemini session")
         expect(allFrames).toContain(width === 32 ? "Claude/GPT weekly" : "Claude/GPT weekly")
@@ -216,7 +225,7 @@ test("sidebar left-aligns numbered accounts under full-width provider rules", as
         expect(allFrames).not.toContain("example.test")
         expect(frame.match(/CODEX/g)?.length).toBe(1)
         expect(allFrames).toContain("AGY")
-        expect(allFrames).toMatch(/3  longusername[^\n]*\n[^\n]*5h [^\n]*60%[^\n]*\n[^\n]*7d [^\n]*80%/)
+        expect(allFrames).toMatch(/3  long\*{4}me[^\n]*\n[^\n]*5h [^\n]*60%[^\n]*\n[^\n]*7d [^\n]*80%/)
         expect(allFrames).toMatch(/5h [░]+\s+0%/)
         expect(allFrames).toMatch(/7d [░]+\s+—/)
         const walk = (node: Renderable): Renderable[] => [node, ...node.getChildren().flatMap(walk)]
@@ -276,6 +285,9 @@ test("style options render real sidebar and details at both widths", async () =>
             await view.renderOnce()
             await view.renderOnce()
             const frame = view.captureCharFrame()
+            expect(frame).toContain("long****le")
+            expect(frame).not.toContain("longaccountnameexample")
+            expect(frame).not.toContain("example.test")
             const spans = view.captureSpans().lines.flatMap(line => line.spans)
             const color = (text: string) => spans.find(span => span.text.includes(text))!.fg.toString()
             expect(color("CODEX")).toBe(RGBA.fromHex("#ff8800").toString())
