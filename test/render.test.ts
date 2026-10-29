@@ -35,9 +35,8 @@ test("panel renders and scrolls within its allocated dimensions", async () => {
         expect(frame).toContain("user0 pro")
         expect(frame).not.toContain("example.test")
         expect(frame).toContain("window0: осталось")
-        expect(frame).toContain("░░░░░░░░░░")
+        expect(frame).toContain("░░░░░░░░░░ 0%")
         expect(frame).toContain("Использовано 10 / 10")
-        expect(frame).not.toContain("%")
         expect(headers[1].y).toBe(headers[0].y + headers[0].height)
         expect(headers[2].y).toBe(headers[1].y + headers[1].height)
         expect(scroll.y).toBe(headers[2].y + headers[2].height)
@@ -50,13 +49,13 @@ test("panel renders and scrolls within its allocated dimensions", async () => {
         }
         scroll.scrollTo(4)
         await view.renderOnce()
-        expect(view.captureCharFrame()).toContain("█████░░░░░")
-        expect(view.captureCharFrame()).toContain("██████████")
+        expect(view.captureCharFrame()).toContain("█████░░░░░ 50%")
+        expect(view.captureCharFrame()).toContain("██████████ 100%")
         scroll.scrollTo(12)
         await view.renderOnce()
         const middle = view.captureCharFrame()
-        expect(middle).toMatch(/window3: осталось\s+\?/)
-        expect(middle).toMatch(/window4: осталось\s+∞/)
+        expect(middle).toMatch(/window3: осталось\s+\?(?!\s*\d+%)/)
+        expect(middle).toMatch(/window4: осталось\s+∞(?!\s*\d+%)/)
         let allFrames = ""
         for (let offset = 0; offset <= scroll.scrollHeight; offset += 8) {
           scroll.scrollTo(offset)
@@ -77,12 +76,16 @@ test("panel renders and scrolls within its allocated dimensions", async () => {
       const side = await testRender(() => sidebar({ name: "" }) as never, { width, height: 18 })
       try {
         await side.renderOnce()
-        expect(side.captureCharFrame()).toContain("░░░░░░░░░░")
+        expect(side.captureCharFrame()).toContain("░░░░░░░░░░ 0%")
         expect(side.captureCharFrame()).toContain("user0")
         expect(side.captureCharFrame()).toContain("user1")
         expect(side.captureCharFrame()).not.toContain("example.test")
         expect(side.captureCharFrame().match(/provider0/g)?.length).toBe(1)
-        expect(side.captureCharFrame()).not.toContain("%")
+        const walk = (node: Renderable): Renderable[] => [node, ...node.getChildren().flatMap(walk)]
+        for (const node of walk(side.renderer.root)) {
+          expect(node.x).toBeGreaterThanOrEqual(0)
+          expect(node.x + node.width).toBeLessThanOrEqual(width)
+        }
       } finally { await side.dispose() }
     }
   } finally {

@@ -25,7 +25,7 @@ export default Plugin.define({
       if (unlimited) return <text>∞</text>
       if (remaining === null) return <text>?</text>
       const filled = Math.round(Math.max(0, Math.min(100, remaining)) / 10)
-      return <box flexDirection="row"><text fg={ctx.theme.text.base}>{"█".repeat(filled)}</text><text fg={ctx.theme.text.muted}>{"░".repeat(10 - filled)}</text></box>
+      return <box flexDirection="row"><text fg={ctx.theme.text.base} width={filled}>{"█".repeat(filled)}</text><text fg={ctx.theme.text.muted} width={10 - filled}>{"░".repeat(10 - filled)}</text><text> {remaining}%</text></box>
     }
     const poller = createPoller({
       baseUrl: typeof ctx.options.baseUrl === "string" ? ctx.options.baseUrl : process.env.OMNIROUTE_BASE_URL ?? "",
