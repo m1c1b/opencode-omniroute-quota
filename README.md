@@ -49,10 +49,62 @@ Only finite actual `used` and `total` values with `total > 0` qualify; unlimited
 The header marks stale or unavailable data; windows without eligible quotas are omitted without falling back to another provider. Individual account displays still use the reported remaining percentage when available.
 
 The default `bar-style` shows each account's quota windows as shaded bars, with
-labels on the left and percentages on the right. Missing windows show `—` and
-an empty bar. Unknown values show `?`, and unlimited quotas show `∞`. Antigravity
+labels on the left and percentages on the right. A missing 5h window is hidden;
+a missing 7d window shows `—` and an empty bar. Unknown values show `?`, and unlimited quotas show `∞`. Antigravity
 groups use their actual model and window labels. Long labels may be shortened in
 narrow sidebars. Bars use the [ascii-bar Shaded character set](https://github.com/tbremer/ascii-bar).
+
+### Sidebar styles
+
+These fictional examples show a 32-column sidebar. Colors come from the active
+theme and are not shown in the plaintext previews. Account labels are masked.
+
+#### `bar-style` (default)
+
+```json
+{ "options": { "style": "bar-style" } }
+```
+
+```text
+▼ ⚙️ Usage · Updated 12:34:56
+CODEX
+#1  demo****01
+  5h ████████████▒░░░░░░░    61%
+  7d ███████████████████▒    95%
+────────────────────────────────
+#2  prod****02
+  7d ███████████████████▒    95%
+/omni-quota — details
+```
+
+The shaded bars use `░`, `▒`, `▓`, and `█`. The second account has no 5h row.
+
+#### `percents-only-style`
+
+```json
+{ "options": { "style": "percents-only-style" } }
+```
+
+```text
+▼ ⚙️ Usage · Updated 12:34:56
+CODEX
+#  ACCOUNT             5h     7d
+#1 demo****01         61%    95%
+────────────────────────────────
+#2 prod****02                95%
+/omni-quota — details
+```
+
+The second account's 5h cell is blank. If no account in a provider group has
+a 5h window, the table omits the entire 5h column.
+
+#### Collapsed preview
+
+Both styles use the same collapsed header. Its separators use the theme's muted color:
+
+```text
+▶ ⚙️ · CODEX · 61% · 95%
+```
 
 All options belong in the plugin entry's `options` object.
 
