@@ -76,20 +76,19 @@ export default Plugin.define({
         return <box ref={sidebar} flexDirection="column" width="100%" paddingTop={1} onSizeChange={function () { setSidebarWidth(this.width) }}>
         <text height={1} flexShrink={0}><strong>OmniRoute</strong> · {state().status}</text>
         <For each={groupAccounts(state().accounts ?? [])}>{group => <box flexDirection="column" flexShrink={0}>
-          <text height={1} flexShrink={0}><strong>{group.provider}</strong></text>
+          <text height={1} flexShrink={0}><strong>{group.provider.toUpperCase()}</strong></text>
           <text height={1} flexShrink={0} fg={ctx.theme.text.muted}>{"─".repeat(sidebarWidth())}</text>
-          <For each={Array.from({ length: Math.ceil(group.accounts.length / columns()) }, (_, i) => group.accounts.slice(i * columns(), (i + 1) * columns()))}>{row => <box flexDirection="row" height={5} flexShrink={0} gap={1}>
-            <For each={row}>{account => <box width={cardWidth()} height={5} flexShrink={0} border borderStyle="rounded" borderColor={ctx.theme.text.muted} flexDirection="column">
-              <text wrapMode="none">{truncate(accountName(account), Math.max(1, cardWidth() - 2))}</text>
+          <For each={Array.from({ length: Math.ceil(group.accounts.length / columns()) }, (_, i) => group.accounts.slice(i * columns(), (i + 1) * columns()))}>{(row, rowIndex) => <box flexDirection="row" flexShrink={0} gap={1}>
+            <For each={row}>{(account, accountIndex) => <box width={cardWidth()} flexShrink={0} flexDirection="column">
+              <text wrapMode="none">{truncate(`${rowIndex() * columns() + accountIndex() + 1}. ${accountName(account)}`, cardWidth())}</text>
               <Show when={hasWindows(account)} fallback={<>
-                <text wrapMode="none">{truncate(summarizeQuotas(account.quotas), Math.max(1, cardWidth() - 2))}</text>
+                <text wrapMode="none">{truncate(summarizeQuotas(account.quotas), cardWidth())}</text>
                 <text wrapMode="none">{summaryBar(account)}</text>
               </>}>
-                <For each={(["5ч", "7д"] as const).filter(label => compactWindow(account, label) !== null)}>{label => <text wrapMode="none">{compactWindow(account, label)} {label}</text>}</For>
+                <For each={(["5ч", "7д"] as const).filter(label => compactWindow(account, label) !== null)}>{(label, index) => <><Show when={index() > 0}><text height={1}> </text></Show><text wrapMode="none">{compactWindow(account, label)} {label}</text></>}</For>
               </Show>
             </box>}</For>
           </box>}</For>
-          <text height={1} flexShrink={0} fg={ctx.theme.text.muted}>{"─".repeat(sidebarWidth())}</text>
         </box>}</For>
         <text>/omni-quota — подробнее</text>
       </box>},

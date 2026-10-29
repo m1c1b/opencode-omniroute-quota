@@ -82,7 +82,7 @@ test("panel renders and scrolls within its allocated dimensions", async () => {
         expect(side.captureCharFrame()).toContain("user0")
         expect(side.captureCharFrame()).toContain("user1")
         expect(side.captureCharFrame()).not.toContain("example.test")
-        expect(side.captureCharFrame().match(/provider0/g)?.length).toBe(1)
+        expect(side.captureCharFrame().match(/PROVIDER0/g)?.length).toBe(1)
         const walk = (node: Renderable): Renderable[] => [node, ...node.getChildren().flatMap(walk)]
         for (const node of walk(side.renderer.root)) {
           expect(node.x).toBeGreaterThanOrEqual(0)
@@ -99,7 +99,7 @@ test("panel renders and scrolls within its allocated dimensions", async () => {
   }
 })
 
-test("sidebar renders rounded account cards at narrow and wide widths", async () => {
+test("sidebar renders unbordered numbered accounts at narrow and wide widths", async () => {
   const result = await Bun.build({ entrypoints: ["src/tui.tsx"], target: "bun", external: ["@opencode/plugin/tui", "@opentui/solid", "solid-js"], plugins: [createSolidTransformPlugin()] })
   await Bun.write(`${import.meta.dir}/../dist/render-windows-test.js`, result.outputs[0])
   const plugin: Plugin.Definition = (await import(new URL("../dist/render-windows-test.js", import.meta.url).href)).default
@@ -134,29 +134,31 @@ test("sidebar renders rounded account cards at narrow and wide widths", async ()
         await view.renderOnce()
         const frame = view.captureCharFrame()
         const lines = frame.split("\n")
-        expect(frame).toContain("╭")
-        expect(frame).toContain("╯")
+        expect(frame).not.toMatch(/[╭╮╰╯│]/)
         expect(frame).toContain("longusername")
         expect(frame).toContain("60% 5ч")
         expect(frame).toContain("80% 7д")
         expect(frame).toContain("? 5ч")
         expect(frame).toContain("∞ 7д")
-        const accountLine = lines.find(line => line.includes("│a "))!
-        expect(accountLine.includes("│c ")).toBe(width === 70)
+        const accountLine = lines.find(line => line.includes("1. a"))!
+        expect(accountLine.includes("2. c")).toBe(width === 70)
         expect(frame).not.toContain("example.test")
         expect(container.width).toBe(width)
-        expect(scroll.scrollHeight).toBeGreaterThan(scroll.height)
         let allFrames = frame
         for (let offset = 0; offset <= scroll.scrollHeight; offset += 5) {
           scroll.scrollTo(offset)
           await view.renderOnce()
           allFrames += view.captureCharFrame()
         }
-        for (const name of ["a", "c", "longusername", "d"]) expect(allFrames).toContain(`│${name} `)
+        for (const name of ["1. a", "2. c", "3. longusername", "1. d"]) expect(allFrames).toContain(name)
         expect(allFrames).toContain("1 квот · мин. 40%")
         expect(allFrames).not.toContain("example.test")
-        expect(frame.match(/codex/g)?.length).toBe(1)
-        expect(allFrames).toContain("agy")
+        expect(frame.match(/CODEX/g)?.length).toBe(1)
+        expect(allFrames).toContain("AGY")
+        expect(lines.filter(line => line.includes("─")).length).toBe(frame.includes("AGY") ? 2 : 1)
+        const fiveHour = lines.findIndex(line => line.includes("60% 5ч"))
+        expect(lines[fiveHour + 1].trim()).toBe("")
+        expect(lines[fiveHour + 2]).toContain("80% 7д")
         const walk = (node: Renderable): Renderable[] => [node, ...node.getChildren().flatMap(walk)]
         for (const node of walk(view.renderer.root)) {
           expect(node.x + node.width).toBeLessThanOrEqual(width)
@@ -167,11 +169,11 @@ test("sidebar renders rounded account cards at narrow and wide widths", async ()
           await view.renderOnce()
           await view.renderOnce()
           expect(container.width).toBe(70)
-          expect(view.captureCharFrame().split("\n").find(line => line.includes("│a "))).toContain("│c ")
+          expect(view.captureCharFrame().split("\n").find(line => line.includes("1. a"))).toContain("2. c")
           view.resize(32, 18)
           await view.renderOnce()
           await view.renderOnce()
-          expect(view.captureCharFrame().split("\n").find(line => line.includes("│a "))).not.toContain("│c ")
+          expect(view.captureCharFrame().split("\n").find(line => line.includes("1. a"))).not.toContain("2. c")
         }
       } finally { await view.dispose() }
     }
