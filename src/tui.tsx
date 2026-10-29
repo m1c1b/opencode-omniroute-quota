@@ -1,6 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 import { Plugin } from "@opencode/plugin/tui"
-import { For, Show, createSignal } from "solid-js"
+import { For, Show, createSignal, onMount } from "solid-js"
+import type { BoxRenderable } from "@opentui/core"
 import { createPoller, type State } from "./poller"
 import { resolveApiKey } from "./api-key"
 import { groupAccounts, summarizeQuotas, type Account, type Quota } from "./quota"
@@ -21,21 +22,8 @@ function windowType(quota: Quota): "5ч" | "7д" | null {
   return null
 }
 
-function compactQuota(quota: Quota): string {
-  if (quota.unlimited) return "∞"
-  if (quota.remaining === null) return "?"
-  const value = Math.round(quota.remaining * 100) / 100
-  const filled = Math.round(Math.max(0, Math.min(100, value)) / 20)
-  return `${"█".repeat(filled)}${"░".repeat(5 - filled)} ${value}%`
-}
-
-function accountSummary(account: Account): string {
-  const windows = (["5ч", "7д"] as const).flatMap(label => {
-    const quota = account.quotas.find(item => windowType(item) === label)
-    return quota ? [`${label} ${compactQuota(quota)}`] : []
-  })
-  return windows.length ? windows.join(" · ") : summarizeQuotas(account.quotas)
-}
+const hasWindows = (account: Account) => account.quotas.some(quota => windowType(quota) !== null)
+const truncate = (value: string, width: number) => value.length > width ? `${value.slice(0, width - 1)}…` : value
 
 function reset(value: string | null): string {
   if (!value) return "—"
@@ -47,6 +35,19 @@ export default Plugin.define({
   id: "omni-quota",
   setup(ctx) {
     const [state, setState] = createSignal(initial)
+    const [sidebarWidth, setSidebarWidth] = createSignal(32)
+    const barWidth = () => sidebarWidth() >= 45 ? 5 : 1
+    const columnWidth = () => barWidth() + 9
+    const nameWidth = () => Math.max(8, sidebarWidth() - 3 - 2 * columnWidth())
+    const compactWindow = (account: Account, label: "5ч" | "7д") => {
+      const quota = account.quotas.find(item => windowType(item) === label)
+      if (!quota) return "—"
+      if (quota.unlimited) return "∞"
+      if (quota.remaining === null) return "?"
+      const value = Math.round(quota.remaining * 100) / 100
+      const filled = Math.round(Math.max(0, Math.min(100, value)) * barWidth() / 100)
+      return `${"█".repeat(filled)}${"░".repeat(barWidth() - filled)} ${value}%`
+    }
     const bar = (remaining: number | null, unlimited = false) => {
       if (unlimited) return <text>∞</text>
       if (remaining === null) return <text>?</text>
@@ -62,17 +63,28 @@ export default Plugin.define({
 
     const removeSidebar = ctx.ui.slot({
       append: "sidebar.content",
-      render: () => <box flexDirection="column" paddingTop={1}>
+      render: () => {
+        let sidebar!: BoxRenderable
+        onMount(() => setSidebarWidth(sidebar.width))
+        return <box ref={sidebar} flexDirection="column" width="100%" paddingTop={1} onSizeChange={function () { setSidebarWidth(this.width) }}>
         <text><strong>OmniRoute</strong> · {state().status}</text>
         <For each={groupAccounts(state().accounts ?? [])}>{group => <box flexDirection="column">
           <text><strong>{group.provider}</strong></text>
-          <For each={group.accounts}>{account => <box flexDirection="row" paddingLeft={1}>
-            <text flexShrink={1} wrapMode="none">{accountName(account)}</text>
-            <text flexShrink={0} wrapMode="none">{" "}{accountSummary(account)}</text>
+          <For each={[true, false].filter(windows => group.accounts.some(account => hasWindows(account) === windows))}>{windows => <box flexDirection="column">
+            <box flexDirection="row" paddingLeft={1}>
+              <text fg={ctx.theme.text.muted} width={nameWidth() + 1}>Аккаунт</text>
+              <text fg={ctx.theme.text.muted} width={windows ? columnWidth() : undefined}>{windows ? "5ч" : "Квоты · мин."}</text>
+              <text fg={ctx.theme.text.muted}>{windows ? "7д" : ""}</text>
+            </box>
+            <For each={group.accounts.filter(account => hasWindows(account) === windows)}>{account => <box flexDirection="row" paddingLeft={1}>
+              <text width={nameWidth() + 1} wrapMode="none">{truncate(accountName(account), nameWidth())}</text>
+              <text width={windows ? columnWidth() : Math.max(0, sidebarWidth() - nameWidth() - 2)} wrapMode="none">{windows ? compactWindow(account, "5ч") : summarizeQuotas(account.quotas)}</text>
+              <For each={windows ? [account] : []}>{item => <text width={columnWidth()} wrapMode="none">{compactWindow(item, "7д")}</text>}</For>
+            </box>}</For>
           </box>}</For>
         </box>}</For>
         <text>/omni-quota — подробнее</text>
-      </box>,
+      </box>},
     })
 
     const removePanel = ctx.ui.slot({

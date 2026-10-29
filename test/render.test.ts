@@ -26,6 +26,7 @@ test("panel renders and scrolls within its allocated dimensions", async () => {
         const walk = (node: Renderable): Renderable[] => [node, ...node.getChildren().flatMap(walk)]
         const nodes = walk(view.renderer.root)
         const scroll = nodes.find(node => node instanceof ScrollBoxRenderable) as ScrollBoxRenderable
+        await view.renderOnce()
         const frame = view.captureCharFrame()
         const headers = nodes.slice(2, 5)
         expect(frame).toContain("OmniRoute: ready")
@@ -103,7 +104,7 @@ test("sidebar renders quota windows on one account line at narrow and wide width
   const plugin: Plugin.Definition = (await import(new URL("../dist/render-windows-test.js", import.meta.url).href)).default
   const providers = [
     { connectionId: "a", provider: "codex", quotas: { session: { windowSeconds: 604800, remainingPercentage: 80 } } },
-    { connectionId: "b", provider: "codex", quotas: { session: { displayName: "session (5h)", remainingPercentage: 60 }, weekly: { displayName: "weekly (7d)", remainingPercentage: 80 } } },
+    { connectionId: "longusername", provider: "codex", quotas: { session: { displayName: "session (5h)", remainingPercentage: 60 }, weekly: { displayName: "weekly (7d)", remainingPercentage: 80 } } },
     { connectionId: "c", provider: "codex", quotas: { session: { windowSeconds: 18000 }, weekly: { unlimited: true } } },
     { connectionId: "d", provider: "agy", quotas: { model: { remainingPercentage: 40 } } },
   ]
@@ -119,11 +120,22 @@ test("sidebar renders quota windows on one account line at narrow and wide width
       const view = await testRender(() => sidebar({ name: "" }) as never, { width, height: 15 })
       try {
         await view.renderOnce()
+        await view.renderOnce()
         const frame = view.captureCharFrame()
         const lines = frame.split("\n")
-        expect(lines.find(line => line.includes("a "))).toContain("7д ████░ 80%")
-        expect(lines.find(line => line.includes("b "))).toContain("5ч ███░░ 60% · 7д ████░ 80%")
-        expect(lines.find(line => line.includes("c "))).toContain("5ч ? · 7д ∞")
+        console.log(`FRAME ${width}\n${frame}`)
+        const header = lines.find(line => line.includes("Аккаунт") && line.includes("5ч"))!
+        const weekly = lines.find(line => line.trimStart().startsWith("a "))!
+        const both = lines.find(line => line.trimStart().startsWith("longuser"))!
+        const unknown = lines.find(line => line.trimStart().startsWith("c "))!
+        expect(weekly.indexOf("—")).toBe(header.indexOf("5ч"))
+        expect(weekly.indexOf("█")).toBe(header.indexOf("7д"))
+        expect(both.indexOf("█")).toBe(header.indexOf("5ч"))
+        expect(both.indexOf("80%")).toBe(weekly.indexOf("80%"))
+        expect(both).toContain(header.indexOf("5ч") > 15 ? "longusername" : "longuser…")
+        expect(both).toContain(header.indexOf("5ч") > 15 ? "███░░ 60%" : "█ 60%")
+        expect(unknown.indexOf("?")).toBe(header.indexOf("5ч"))
+        expect(unknown.indexOf("∞")).toBe(header.indexOf("7д"))
         expect(lines.find(line => line.includes("d "))).toContain("1 квот · мин. 40%")
         expect(frame).not.toContain("example.test")
         expect(frame.match(/codex/g)?.length).toBe(1)
@@ -131,7 +143,6 @@ test("sidebar renders quota windows on one account line at narrow and wide width
         const walk = (node: Renderable): Renderable[] => [node, ...node.getChildren().flatMap(walk)]
         for (const node of walk(view.renderer.root)) {
           expect(node.x + node.width).toBeLessThanOrEqual(width)
-          if (node instanceof BoxRenderable && node.y >= 3 && node.y <= 5) expect(node.height).toBe(1)
         }
       } finally { await view.dispose() }
     }
