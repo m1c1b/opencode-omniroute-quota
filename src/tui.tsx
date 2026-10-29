@@ -2,6 +2,7 @@
 import { Plugin } from "@opencode/plugin/tui"
 import { For, Show, createSignal } from "solid-js"
 import { createPoller, type State } from "./poller"
+import { resolveApiKey } from "./api-key"
 import { summarizeQuotas } from "./quota"
 import type { Account, Quota } from "./quota"
 
@@ -24,7 +25,7 @@ export default Plugin.define({
     const [state, setState] = createSignal(initial)
     const poller = createPoller({
       baseUrl: typeof ctx.options.baseUrl === "string" ? ctx.options.baseUrl : process.env.OMNIROUTE_BASE_URL ?? "",
-      apiKey: process.env.OMNIROUTE_API_KEY ?? "",
+      apiKey: resolveApiKey(ctx.options.apiKey),
       interval: duration(ctx.options.intervalMs, 60_000),
       timeout: duration(ctx.options.timeoutMs, 10_000),
     }, setState)

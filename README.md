@@ -16,11 +16,11 @@ bun run build
 ```sh
 OMNIROUTE_API_KEY="$(dotenvx get OMNIROUTE_API_KEY -f ~/.env)" \
 OMNIROUTE_BASE_URL="https://omniroute.m1c1b.dev:8443" \
-OPENCODE_CLI_CONFIG_CONTENT='{"plugins":[{"package":"file:///absolute/path/to/opencode-omni-quota","options":{"intervalMs":60000,"timeoutMs":10000}}]}' \
+OPENCODE_CLI_CONFIG_CONTENT='{"plugins":[{"package":"file:///absolute/path/to/opencode-omni-quota","options":{"apiKey":"{env:OMNIROUTE_API_KEY}","intervalMs":60000,"timeoutMs":10000}}]}' \
 opencode
 ```
 
-Перед запуском OpenCode задайте переменную окружения `OMNIROUTE_API_KEY`. Ключ не следует помещать в конфигурацию плагина. Вместо `baseUrl` можно задать `OMNIROUTE_BASE_URL` в окружении. При наличии обоих значений действует `baseUrl`. Интервал и таймаут задаются в миллисекундах; минимум — 1000. Для некорректного значения используется значение по умолчанию.
+Перед запуском TUI задайте переменную окружения `OMNIROUTE_API_KEY`. В `~/.config/opencode/cli.json` укажите для плагина `"apiKey": "{env:OMNIROUTE_API_KEY}"`; сам ключ в конфигурацию помещать не следует. Ссылку разрешает плагин в окружении процесса TUI, а не сервера. Например, при запуске через launchctl переменная должна быть передана процессу TUI. При отсутствии `apiKey` используется `OMNIROUTE_API_KEY`; явно заданное значение имеет приоритет. Неизвестная или пустая переменная даёт статус `unavailable` без HTTP-запроса. Вместо `baseUrl` можно задать `OMNIROUTE_BASE_URL` в окружении. При наличии обоих значений действует `baseUrl`. Интервал и таймаут задаются в миллисекундах; минимум — 1000. Для некорректного значения используется значение по умолчанию.
 
 Команда передаёт ключ только в окружение процесса, не выводит его и не сохраняет в конфигурации.
 
