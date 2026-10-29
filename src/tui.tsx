@@ -36,9 +36,8 @@ export default Plugin.define({
   setup(ctx) {
     const [state, setState] = createSignal(initial)
     const [sidebarWidth, setSidebarWidth] = createSignal(32)
-    const columns = () => sidebarWidth() >= 60 ? 2 : 1
-    const cardWidth = () => Math.floor((sidebarWidth() - (columns() - 1)) / columns())
-    const barWidth = () => Math.max(1, Math.min(10, cardWidth() - 16))
+    const contentWidth = () => Math.max(1, sidebarWidth() - 2)
+    const barWidth = () => Math.max(1, Math.min(10, contentWidth() - 16))
     const compactBar = (remaining: number | null, unlimited = false) => {
       if (unlimited) return "∞"
       if (remaining === null) return "?"
@@ -75,19 +74,16 @@ export default Plugin.define({
         onMount(() => setSidebarWidth(sidebar.width))
         return <box ref={sidebar} flexDirection="column" width="100%" paddingTop={1} onSizeChange={function () { setSidebarWidth(this.width) }}>
         <text height={1} flexShrink={0}><strong>OmniRoute</strong> · {state().status}</text>
-        <For each={groupAccounts(state().accounts ?? [])}>{group => <box flexDirection="column" flexShrink={0}>
+        <For each={groupAccounts(state().accounts ?? [])}>{group => <box width="100%" border borderStyle="single" borderColor={ctx.theme.text.muted} flexDirection="column" flexShrink={0} alignItems="center">
           <text height={1} flexShrink={0}><strong>{group.provider.toUpperCase()}</strong></text>
-          <text height={1} flexShrink={0} fg={ctx.theme.text.muted}>{"─".repeat(sidebarWidth())}</text>
-          <For each={Array.from({ length: Math.ceil(group.accounts.length / columns()) }, (_, i) => group.accounts.slice(i * columns(), (i + 1) * columns()))}>{(row, rowIndex) => <box flexDirection="row" flexShrink={0} gap={1}>
-            <For each={row}>{(account, accountIndex) => <box width={cardWidth()} flexShrink={0} flexDirection="column">
-              <text wrapMode="none">{truncate(`${rowIndex() * columns() + accountIndex() + 1}. ${accountName(account)}`, cardWidth())}</text>
+          <For each={group.accounts}>{(account, accountIndex) => <box width="100%" flexShrink={0} flexDirection="column" alignItems="center" paddingTop={1}>
+              <text wrapMode="none">{truncate(`${accountIndex() + 1}. ${accountName(account)}`, contentWidth())}</text>
               <Show when={hasWindows(account)} fallback={<>
-                <text wrapMode="none">{truncate(summarizeQuotas(account.quotas), cardWidth())}</text>
+                <text wrapMode="none">{truncate(summarizeQuotas(account.quotas), contentWidth())}</text>
                 <text wrapMode="none">{summaryBar(account)}</text>
               </>}>
                 <For each={(["5ч", "7д"] as const).filter(label => compactWindow(account, label) !== null)}>{(label, index) => <><Show when={index() > 0}><text height={1}> </text></Show><text wrapMode="none">{compactWindow(account, label)} {label}</text></>}</For>
               </Show>
-            </box>}</For>
           </box>}</For>
         </box>}</For>
         <text>/omni-quota — подробнее</text>
