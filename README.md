@@ -125,7 +125,13 @@ The displayed fetch time is not the age of OmniRoute's upstream data. Quotas do 
 
 ## Security and privacy
 
-The plugin sends the key as a Bearer token to `/api/usage/om-usage?format=json` and, when accounts are present, to `/api/providers` for optional account labels. Use HTTPS for remote servers. Redirects are rejected. The providers response may contain secrets and is processed in the TUI process memory; use a trusted OmniRoute server and protect the local environment. The plugin does not intentionally save keys or responses to disk or display server error text.
+The plugin sends the same key as a Bearer token to these endpoints on the configured OmniRoute origin:
+
+- `GET /api/usage/om-usage?format=json` to read cached quotas.
+- `GET /api/providers` for optional account labels, when accounts are present.
+- `POST /api/usage/provider-limits` to refresh upstream quotas when you run `/omni-quota-refresh`. This requires `manage` or `admin` scope; automatic polling never sends this POST.
+
+Use HTTPS for remote servers. Redirects are rejected. The providers response may contain secrets and is processed in the TUI process memory; use a trusted OmniRoute server and protect the local environment. The plugin does not intentionally save keys or responses to disk or display server error text.
 
 Account labels may be visible in the TUI. Email labels are shortened to the part before `@`, which can still identify an account.
 
