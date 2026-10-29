@@ -1,5 +1,7 @@
 export interface Quota {
   name: string
+  key?: string
+  windowSeconds?: number | null
   remaining: number | null
   used: number | null
   total: number | null
@@ -45,6 +47,8 @@ function parseAccount(value: unknown): Account {
       if (!quota) throw new Error("invalid response")
       return {
         name: text(quota.displayName) || name,
+        key: name,
+        windowSeconds: number(quota.windowSeconds),
         remaining: percentage(quota),
         used: number(quota.used),
         total: number(quota.total),

@@ -6,6 +6,11 @@ test("metadata keeps only valid email local parts", () => {
   expect(parseLabels({ connections: null }).size).toBe(0)
 })
 
+test("preserves raw quota keys and window duration", () => {
+  const [account] = parseResponse({ allowed: true, providers: [{ connectionId: "a", provider: "codex", quotas: { session: { displayName: "Weekly", windowSeconds: 604800 } } }] })
+  expect(account.quotas[0]).toMatchObject({ key: "session", name: "Weekly", windowSeconds: 604800 })
+})
+
 test("groups accounts by provider without losing order", () => {
   const accounts = ["a", "b", "a"].map((provider, i) => ({ id: String(i), provider, plan: "", quotas: [] }))
   expect(groupAccounts(accounts).map(group => [group.provider, group.accounts.map(account => account.id)])).toEqual([["a", ["0", "2"]], ["b", ["1"]]])

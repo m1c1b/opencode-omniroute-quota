@@ -76,7 +76,7 @@ test("panel renders and scrolls within its allocated dimensions", async () => {
       const side = await testRender(() => sidebar({ name: "" }) as never, { width, height: 18 })
       try {
         await side.renderOnce()
-        expect(side.captureCharFrame()).toContain("░░░░░░░░░░ 0%")
+        expect(side.captureCharFrame()).toContain("12 квот · мин. 0% + ?")
         expect(side.captureCharFrame()).toContain("user0")
         expect(side.captureCharFrame()).toContain("user1")
         expect(side.captureCharFrame()).not.toContain("example.test")
@@ -94,5 +94,51 @@ test("panel renders and scrolls within its allocated dimensions", async () => {
     if (previousKey === undefined) delete process.env.OMNIROUTE_API_KEY
     else process.env.OMNIROUTE_API_KEY = previousKey
     await file.delete()
+  }
+})
+
+test("sidebar renders quota windows on one account line at narrow and wide widths", async () => {
+  const result = await Bun.build({ entrypoints: ["src/tui.tsx"], target: "bun", external: ["@opencode/plugin/tui", "@opentui/solid", "solid-js"], plugins: [createSolidTransformPlugin()] })
+  await Bun.write(`${import.meta.dir}/../dist/render-windows-test.js`, result.outputs[0])
+  const plugin: Plugin.Definition = (await import(new URL("../dist/render-windows-test.js", import.meta.url).href)).default
+  const providers = [
+    { connectionId: "a", provider: "codex", quotas: { session: { windowSeconds: 604800, remainingPercentage: 80 } } },
+    { connectionId: "b", provider: "codex", quotas: { session: { displayName: "session (5h)", remainingPercentage: 60 }, weekly: { displayName: "weekly (7d)", remainingPercentage: 80 } } },
+    { connectionId: "c", provider: "codex", quotas: { session: { windowSeconds: 18000 }, weekly: { unlimited: true } } },
+    { connectionId: "d", provider: "agy", quotas: { model: { remainingPercentage: 40 } } },
+  ]
+  const server = Bun.serve({ port: 0, fetch: request => new URL(request.url).pathname === "/api/providers" ? Response.json({ connections: providers.map(p => ({ id: p.connectionId, email: `${p.connectionId}@example.test` })) }) : Response.json({ allowed: true, providers }) })
+  const previousKey = process.env.OMNIROUTE_API_KEY
+  process.env.OMNIROUTE_API_KEY = "test"
+  let sidebar: (input: { name: string }) => unknown = () => null
+  const context = { options: { baseUrl: server.url.href }, theme: { background: { base: "#101010" }, text: { base: "#ffffff", muted: "#777777" } }, ui: { slot: (slot: { append: string, render: typeof sidebar }) => { if (slot.append === "sidebar.content") sidebar = slot.render; return () => {} } }, keymap: { layer: () => {} } } as unknown as Parameters<typeof plugin.setup>[0]
+  const stop = await plugin.setup(context)
+  try {
+    await Bun.sleep(50)
+    for (const width of [32, 70]) {
+      const view = await testRender(() => sidebar({ name: "" }) as never, { width, height: 15 })
+      try {
+        await view.renderOnce()
+        const frame = view.captureCharFrame()
+        const lines = frame.split("\n")
+        expect(lines.find(line => line.includes("a "))).toContain("7д ████░ 80%")
+        expect(lines.find(line => line.includes("b "))).toContain("5ч ███░░ 60% · 7д ████░ 80%")
+        expect(lines.find(line => line.includes("c "))).toContain("5ч ? · 7д ∞")
+        expect(lines.find(line => line.includes("d "))).toContain("1 квот · мин. 40%")
+        expect(frame).not.toContain("example.test")
+        expect(frame.match(/codex/g)?.length).toBe(1)
+        expect(frame).toContain("agy")
+        const walk = (node: Renderable): Renderable[] => [node, ...node.getChildren().flatMap(walk)]
+        for (const node of walk(view.renderer.root)) {
+          expect(node.x + node.width).toBeLessThanOrEqual(width)
+          if (node instanceof BoxRenderable && node.y >= 3 && node.y <= 5) expect(node.height).toBe(1)
+        }
+      } finally { await view.dispose() }
+    }
+  } finally {
+    if (typeof stop === "function") stop()
+    server.stop()
+    if (previousKey === undefined) delete process.env.OMNIROUTE_API_KEY
+    else process.env.OMNIROUTE_API_KEY = previousKey
   }
 })

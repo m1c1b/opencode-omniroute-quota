@@ -3,13 +3,39 @@ import { Plugin } from "@opencode/plugin/tui"
 import { For, Show, createSignal } from "solid-js"
 import { createPoller, type State } from "./poller"
 import { resolveApiKey } from "./api-key"
-import { groupAccounts, type Account } from "./quota"
+import { groupAccounts, summarizeQuotas, type Account, type Quota } from "./quota"
 
 const initial: State = { accounts: null, status: "loading", updatedAt: null }
 const duration = (value: unknown, fallback: number) =>
   typeof value === "number" && Number.isFinite(value) && value >= 1000 ? value : fallback
 const shortId = (id: string) => id.slice(0, 8)
 const accountName = (account: Account) => account.label ?? `Аккаунт [${shortId(account.id)}]`
+
+function windowType(quota: Quota): "5ч" | "7д" | null {
+  if (quota.windowSeconds === 18000) return "5ч"
+  if (quota.windowSeconds === 604800) return "7д"
+  if (quota.windowSeconds != null) return null
+  const name = `${quota.key ?? ""} ${quota.name}`.toLowerCase()
+  if (/\b(weekly|week|7d|7 days?)\b/.test(name)) return "7д"
+  if (/\b(5h|5 hours?)\b/.test(name)) return "5ч"
+  return null
+}
+
+function compactQuota(quota: Quota): string {
+  if (quota.unlimited) return "∞"
+  if (quota.remaining === null) return "?"
+  const value = Math.round(quota.remaining * 100) / 100
+  const filled = Math.round(Math.max(0, Math.min(100, value)) / 20)
+  return `${"█".repeat(filled)}${"░".repeat(5 - filled)} ${value}%`
+}
+
+function accountSummary(account: Account): string {
+  const windows = (["5ч", "7д"] as const).flatMap(label => {
+    const quota = account.quotas.find(item => windowType(item) === label)
+    return quota ? [`${label} ${compactQuota(quota)}`] : []
+  })
+  return windows.length ? windows.join(" · ") : summarizeQuotas(account.quotas)
+}
 
 function reset(value: string | null): string {
   if (!value) return "—"
@@ -40,14 +66,10 @@ export default Plugin.define({
         <text><strong>OmniRoute</strong> · {state().status}</text>
         <For each={groupAccounts(state().accounts ?? [])}>{group => <box flexDirection="column">
           <text><strong>{group.provider}</strong></text>
-          <For each={group.accounts}>{account => {
-          const limited = account.quotas.filter(quota => !quota.unlimited)
-          const known = limited.flatMap(quota => quota.remaining === null ? [] : [quota.remaining])
-          return <box flexDirection="column" paddingLeft={1}>
-            <text>{accountName(account)}: {account.quotas.length} квот</text>
-            <Show when={account.quotas.length > 0}><text>Мин. остаток{known.length > 0 && known.length < limited.length ? " + ?" : ""}:</text>{bar(known.length ? Math.min(...known) : null, limited.length === 0)}</Show>
-          </box>
-          }}</For>
+          <For each={group.accounts}>{account => <box flexDirection="row" paddingLeft={1}>
+            <text flexShrink={1} wrapMode="none">{accountName(account)}</text>
+            <text flexShrink={0} wrapMode="none">{" "}{accountSummary(account)}</text>
+          </box>}</For>
         </box>}</For>
         <text>/omni-quota — подробнее</text>
       </box>,
