@@ -1,46 +1,75 @@
 # OmniRoute Quota for OpenCode
 
-This OpenCode V2 TUI plugin shows quotas for all OmniRoute accounts in the session sidebar. The details panel shows each quota, usage and reset time.
+An OpenCode TUI plugin that shows OmniRoute account quotas in the session sidebar. Open the details panel to inspect individual quotas, usage and reset times.
+
+## Requirements
+
+- OpenCode 2.1.0. The plugin targets its V2 TUI plugin API.
+- An OmniRoute server and a key authorized to access its usage endpoint.
+- Bun for building the plugin from source or packing it for npm.
 
 ## Installation
 
-OpenCode 2.1.0 and Bun are required. In the project directory:
+The package has not yet been published to npm. After publication, add the following entry to `~/.config/opencode/cli.json`:
+
+```json
+{
+  "plugins": [
+    {
+      "package": "opencode-omni-quota",
+      "options": {
+        "baseUrl": "https://omniroute.example.com",
+        "apiKey": "{env:OMNIROUTE_API_KEY}"
+      }
+    }
+  ]
+}
+```
+
+Set `OMNIROUTE_API_KEY` in the environment of the process that starts the OpenCode TUI. The plugin resolves environment references in the TUI process, not the server process. Avoid putting the key directly in configuration. You can also omit `apiKey` and use `OMNIROUTE_API_KEY` automatically.
+
+### Run from a local checkout
+
+Install dependencies and build the plugin in the checkout:
 
 ```sh
 bun install --frozen-lockfile
 bun run build
 ```
 
-To run without changing global configuration, provide an absolute path to the package directory:
+Use a `file://` URL pointing to the absolute path of the checkout instead of the package name in the configuration above. For example, `file:///absolute/path/to/opencode-omni-quota`. Set the API key in the TUI process environment before starting OpenCode.
 
-```sh
-OMNIROUTE_API_KEY="$(dotenvx get OMNIROUTE_API_KEY -f ~/.env)" \
-OMNIROUTE_BASE_URL="https://omniroute.m1c1b.dev:8443" \
-OPENCODE_CLI_CONFIG_CONTENT='{"plugins":[{"package":"file:///absolute/path/to/opencode-omni-quota","options":{"apiKey":"{env:OMNIROUTE_API_KEY}","intervalMs":60000,"timeoutMs":10000}}]}' \
-opencode
-```
+## Options
 
-Set `OMNIROUTE_API_KEY` before starting the TUI. In `~/.config/opencode/cli.json`, use `"apiKey": "{env:OMNIROUTE_API_KEY}"` for the plugin; do not put the key itself in configuration. The plugin resolves this reference in the TUI process environment, not the server environment. For example, launchctl must pass the variable to the TUI process. When `apiKey` is omitted, `OMNIROUTE_API_KEY` is used; an explicit value takes precedence. An unknown or empty variable produces `unavailable` without an HTTP request. `OMNIROUTE_BASE_URL` can be used instead of `baseUrl`; `baseUrl` takes precedence. Interval and timeout are in milliseconds, with a minimum of 1000. Invalid values use the defaults.
+All options belong in the plugin entry's `options` object.
 
-The command passes the key only through the process environment. It does not print or save the key in configuration.
+| Option | Default | Description |
+| --- | --- | --- |
+| `baseUrl` | `OMNIROUTE_BASE_URL`, or empty | OmniRoute server URL. An explicit string takes precedence over the environment variable. |
+| `apiKey` | `OMNIROUTE_API_KEY`, or empty | Bearer key or `{env:VARIABLE_NAME}` reference. An explicit string takes precedence over the environment variable. |
+| `style` | `bar-style` | Use `bar-style` for bars or `percents-only-style` for a table without bars. Applies to the sidebar and details panel. Invalid values use `bar-style`. |
+| `intervalMs` | `60000` | Polling interval in milliseconds. Must be a finite number of at least `1000`; invalid values use the default. |
+| `timeoutMs` | `10000` | Request timeout in milliseconds. Must be a finite number of at least `1000`; invalid values use the default. |
 
-The plugin option `options.style` selects the display: `"bar-style"` shows bars, while `"percents-only-style"` shows a table without bars. The default is `"bar-style"`; invalid values also fall back to it. For example: `"options": { "style": "percents-only-style" }`. The setting also applies to the details panel.
-
-The plugin calls `/api/usage/om-usage?format=json` with a Bearer key. Use HTTPS for remote servers. Redirects are rejected to avoid sending the key to another server. The plugin does not save keys or responses to disk or display server error text.
+An empty or unresolved key, or an empty base URL, produces `unavailable` without a request. The URL must use HTTP or HTTPS and must not contain credentials.
 
 ## Usage
 
-Open a session and its sidebar. `/omni-quota` opens the details panel within a session; on the home screen it asks you to open a session. `/omni-quota-refresh` refreshes the cache. Both commands are also available in the palette. Polling is automatic and requests do not overlap.
+Open a session and its sidebar. Run `/omni-quota` to open the details panel, or `/omni-quota-refresh` to refresh the cache. Both commands are also available in the command palette. Polling is automatic; requests do not overlap.
 
-Statuses: `loading` means the first request is pending; `ready` means data is available; `unavailable` means no data is available; `stale` means the request failed and the last successful data is shown. Reset times use the local time zone. Account IDs are shortened to eight characters.
+The status is `loading` while the first request is pending, `ready` when data is available, `unavailable` when no data is available, or `stale` when a request fails after a successful update. Reset times use the local time zone. Account IDs are shortened to eight characters.
 
-The summary shows the number of quotas and the minimum known remaining percentage among limited quotas. `∞` means all quotas are unlimited; `?` means the remainder is unknown. When known and unknown values are mixed, `+ ?` appears next to the minimum.
+The sidebar groups accounts by provider. It shows separate five-hour and seven-day windows when present. Other quotas show a summary and the minimum known remaining percentage. `∞` means all quotas are unlimited; `?` means the remainder is unknown. A mixed known and unknown summary includes `+ ?`.
 
-The sidebar groups and numbers accounts by provider. The default style shows a full-width rule below the provider, vertically arranged accounts, and bars using the available width. Five-hour and seven-day windows appear separately when present. Other quotas show a summary and minimum remainder. Email addresses are shortened to the part before `@`.
+For AGY, the sidebar shows API aggregates by group and window when available. These are OmniRoute values, not plugin-calculated model minima. Shared pools are not inferred from model names. The details panel retains individual quotas.
 
-For AGY, the sidebar shows explicitly marked API aggregates by group and window when available. These are OmniRoute values, not plugin-calculated model minima. Shared pools are not inferred from model names. The details panel retains every quota, including individual models. Without aggregates, the ordinary summary is shown.
+The usage endpoint reads the OmniRoute cache, whose age is unknown. The panel time records when the plugin received the response. Accounts without cached quotas are absent. Percentages are raw provider values without thresholds or reserves and do not guarantee route availability. JSON responses may differ from `@@om-usage`, which accounts for thresholds. If a request returns HTTP 401 or 403, check the key and OmniRoute's `allowUsageCommand` setting.
 
-The endpoint reads the OmniRoute cache rather than querying providers. Cache age is unknown. The panel time only records when the plugin received the response. Accounts without cached quotas are absent from the response. Percentages are raw provider values without thresholds or reserves and do not guarantee route availability. JSON responses may differ from `@@om-usage` output, which accounts for thresholds. HTTP 401 and 403 appear as `unavailable` or `stale`: check the key and OmniRoute's `allowUsageCommand` setting. Management authentication is not required for this endpoint.
+## Security and privacy
+
+The plugin sends the key as a Bearer token to `/api/usage/om-usage?format=json` and, when accounts are present, to `/api/providers` for optional account labels. Use HTTPS for remote servers. Redirects are rejected. The providers response may contain secrets and is processed in the TUI process memory; use a trusted OmniRoute server and protect the local environment. The plugin does not intentionally save keys or responses to disk or display server error text.
+
+Account labels may be visible in the TUI. Email labels are shortened to the part before `@`, which can still identify an account.
 
 ## Development
 
@@ -50,3 +79,9 @@ bun run typecheck
 bun run lint
 bun run build
 ```
+
+`npm pack` runs the build through `prepack` and therefore requires Bun and installed development dependencies.
+
+## License
+
+No license has been granted. All rights reserved.
