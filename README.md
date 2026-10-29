@@ -1,17 +1,17 @@
-# OmniRoute Quota для OpenCode
+# OmniRoute Quota for OpenCode
 
-TUI-плагин OpenCode V2 показывает квоты всех аккаунтов OmniRoute в боковой панели сессии. Подробная панель содержит каждую квоту, использованное количество и время сброса.
+This OpenCode V2 TUI plugin shows quotas for all OmniRoute accounts in the session sidebar. The details panel shows each quota, usage and reset time.
 
-## Установка
+## Installation
 
-Нужны OpenCode 2.1.0 и Bun. В каталоге проекта:
+OpenCode 2.1.0 and Bun are required. In the project directory:
 
 ```sh
 bun install --frozen-lockfile
 bun run build
 ```
 
-Для запуска без изменения глобальной конфигурации укажите абсолютный путь к каталогу пакета:
+To run without changing global configuration, provide an absolute path to the package directory:
 
 ```sh
 OMNIROUTE_API_KEY="$(dotenvx get OMNIROUTE_API_KEY -f ~/.env)" \
@@ -20,27 +20,29 @@ OPENCODE_CLI_CONFIG_CONTENT='{"plugins":[{"package":"file:///absolute/path/to/op
 opencode
 ```
 
-Перед запуском TUI задайте переменную окружения `OMNIROUTE_API_KEY`. В `~/.config/opencode/cli.json` укажите для плагина `"apiKey": "{env:OMNIROUTE_API_KEY}"`; сам ключ в конфигурацию помещать не следует. Ссылку разрешает плагин в окружении процесса TUI, а не сервера. Например, при запуске через launchctl переменная должна быть передана процессу TUI. При отсутствии `apiKey` используется `OMNIROUTE_API_KEY`; явно заданное значение имеет приоритет. Неизвестная или пустая переменная даёт статус `unavailable` без HTTP-запроса. Вместо `baseUrl` можно задать `OMNIROUTE_BASE_URL` в окружении. При наличии обоих значений действует `baseUrl`. Интервал и таймаут задаются в миллисекундах; минимум — 1000. Для некорректного значения используется значение по умолчанию.
+Set `OMNIROUTE_API_KEY` before starting the TUI. In `~/.config/opencode/cli.json`, use `"apiKey": "{env:OMNIROUTE_API_KEY}"` for the plugin; do not put the key itself in configuration. The plugin resolves this reference in the TUI process environment, not the server environment. For example, launchctl must pass the variable to the TUI process. When `apiKey` is omitted, `OMNIROUTE_API_KEY` is used; an explicit value takes precedence. An unknown or empty variable produces `unavailable` without an HTTP request. `OMNIROUTE_BASE_URL` can be used instead of `baseUrl`; `baseUrl` takes precedence. Interval and timeout are in milliseconds, with a minimum of 1000. Invalid values use the defaults.
 
-Команда передаёт ключ только в окружение процесса, не выводит его и не сохраняет в конфигурации.
+The command passes the key only through the process environment. It does not print or save the key in configuration.
 
-Плагин обращается к `/api/usage/om-usage?format=json` с Bearer-ключом. Используйте HTTPS для удалённого сервера. Редиректы отклоняются, чтобы не передавать ключ другому серверу. Плагин не сохраняет ключ или ответы на диск и не выводит текст ошибок сервера.
+The plugin option `options.style` selects the display: `"bar-style"` shows bars, while `"percents-only-style"` shows a table without bars. The default is `"bar-style"`; invalid values also fall back to it. For example: `"options": { "style": "percents-only-style" }`. The setting also applies to the details panel.
 
-## Использование
+The plugin calls `/api/usage/om-usage?format=json` with a Bearer key. Use HTTPS for remote servers. Redirects are rejected to avoid sending the key to another server. The plugin does not save keys or responses to disk or display server error text.
 
-Откройте сессию и её боковую панель. Команда `/omni-quota` открывает подробную панель только внутри сессии; на домашнем экране она предлагает открыть сессию. `/omni-quota-refresh` перечитывает кеш. Команды также доступны в палитре. Чтение выполняется автоматически; одновременные запросы не запускаются.
+## Usage
 
-Статусы: `loading` — первая загрузка, `ready` — данные получены, `unavailable` — данных пока нет, `stale` — запрос завершился ошибкой, показаны последние успешные данные. Время сброса отображается в локальном часовом поясе. Идентификатор аккаунта сокращён до первых восьми символов.
+Open a session and its sidebar. `/omni-quota` opens the details panel within a session; on the home screen it asks you to open a session. `/omni-quota-refresh` refreshes the cache. Both commands are also available in the palette. Polling is automatic and requests do not overlap.
 
-Сводка показывает число окон и минимальный известный остаток среди ограниченных окон. `∞` означает, что все окна безлимитны; `?` — остаток неизвестен. Если известные и неизвестные остатки смешаны, рядом с минимумом показано `+ ?`.
+Statuses: `loading` means the first request is pending; `ready` means data is available; `unavailable` means no data is available; `stale` means the request failed and the last successful data is shown. Reset times use the local time zone. Account IDs are shortened to eight characters.
 
-Боковая панель группирует и нумерует аккаунты по провайдерам. Под заголовком провайдера проходит линия на всю ширину; аккаунты расположены вертикально с отступом слева, без рамок. Полосы занимают доступную ширину. Окна 5 часов и 7 дней отображаются отдельными строками, если они присутствуют в ответе. Для остальных квот показаны сводка и минимальный остаток. Адрес аккаунта сокращается до части перед `@`.
+The summary shows the number of quotas and the minimum known remaining percentage among limited quotas. `∞` means all quotas are unlimited; `?` means the remainder is unknown. When known and unknown values are mixed, `+ ?` appears next to the minimum.
 
-Для AGY боковая панель показывает явно отмеченные API агрегаты по группам и окнам, если они есть. Это значения OmniRoute, а не вычисленный плагином минимум моделей. Состав общих пулов по именам моделей не определяется. Подробная панель сохраняет все квоты, включая отдельные модели. Если агрегатов нет, показывается обычная сводка.
+The sidebar groups and numbers accounts by provider. The default style shows a full-width rule below the provider, vertically arranged accounts, and bars using the available width. Five-hour and seven-day windows appear separately when present. Other quotas show a summary and minimum remainder. Email addresses are shortened to the part before `@`.
 
-Endpoint читает кеш OmniRoute, а не запрашивает провайдеров. Возраст кеша неизвестен. Время в панели показывает только получение ответа плагином. Аккаунты без кешированных квот в ответ не попадают. Проценты — сырые значения провайдера, без учёта порогов и резерва; они не гарантируют доступность маршрута. Ответ JSON может отличаться от текста команды `@@om-usage` с учётом порогов. Ошибки 401 и 403 отображаются как `unavailable` или `stale`: проверьте ключ и настройку `allowUsageCommand` OmniRoute. Management auth для этого endpoint не требуется.
+For AGY, the sidebar shows explicitly marked API aggregates by group and window when available. These are OmniRoute values, not plugin-calculated model minima. Shared pools are not inferred from model names. The details panel retains every quota, including individual models. Without aggregates, the ordinary summary is shown.
 
-## Разработка
+The endpoint reads the OmniRoute cache rather than querying providers. Cache age is unknown. The panel time only records when the plugin received the response. Accounts without cached quotas are absent from the response. Percentages are raw provider values without thresholds or reserves and do not guarantee route availability. JSON responses may differ from `@@om-usage` output, which accounts for thresholds. HTTP 401 and 403 appear as `unavailable` or `stale`: check the key and OmniRoute's `allowUsageCommand` setting. Management authentication is not required for this endpoint.
+
+## Development
 
 ```sh
 bun run test

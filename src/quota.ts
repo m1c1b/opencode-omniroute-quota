@@ -21,12 +21,12 @@ export interface Account {
 }
 
 export function summarizeQuotas(quotas: Quota[]): string {
-  if (!quotas.length) return "0 квот"
+  if (!quotas.length) return "0 quotas"
   const limited = quotas.filter(quota => !quota.unlimited)
   const known = limited.flatMap(quota => quota.remaining === null ? [] : [quota.remaining])
   const worst = known.length ? `${Math.min(...known)}%` : limited.length ? "?" : "∞"
   const unknown = known.length < limited.length && known.length > 0 ? " + ?" : ""
-  return `${quotas.length} квот · мин. ${worst}${unknown}`
+  return `${quotas.length} ${quotas.length === 1 ? "quota" : "quotas"} · min. ${worst}${unknown}`
 }
 
 const record = (value: unknown): Record<string, unknown> | null =>

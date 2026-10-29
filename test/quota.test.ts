@@ -57,10 +57,10 @@ describe("OmniRoute response", () => {
 
   test("summarizes known, unknown and unlimited windows", () => {
     const q = (remaining: number | null, unlimited = false): Quota => ({ name: "", remaining, unlimited, used: null, total: null, resetAt: null })
-    expect(summarizeQuotas([])).toBe("0 квот")
-    expect(summarizeQuotas([q(null, true)])).toBe("1 квот · мин. ∞")
-    expect(summarizeQuotas([q(null), q(null, true)])).toBe("2 квот · мин. ?")
-    expect(summarizeQuotas([q(50), q(10), q(null), q(null, true)])).toBe("4 квот · мин. 10% + ?")
+    expect(summarizeQuotas([])).toBe("0 quotas")
+    expect(summarizeQuotas([q(null, true)])).toBe("1 quota · min. ∞")
+    expect(summarizeQuotas([q(null), q(null, true)])).toBe("2 quotas · min. ?")
+    expect(summarizeQuotas([q(50), q(10), q(null), q(null, true)])).toBe("4 quotas · min. 10% + ?")
   })
 
   test("sends bearer to expected endpoint and rejects redirects", async () => {

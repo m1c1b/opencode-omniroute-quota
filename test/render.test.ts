@@ -30,14 +30,14 @@ test("panel renders and scrolls within its allocated dimensions", async () => {
         const frame = view.captureCharFrame()
         const headers = nodes.slice(2, 5)
         expect(frame).toContain("OmniRoute: ready")
-        expect(frame).toContain("Кеш OmniRoute · не гарантия")
-        expect(frame).toContain("Получено плагином:")
+        expect(frame).toContain("Cache · no routing guarantee")
+        expect(frame).toContain("Received by plugin:")
         expect(frame).toContain("provider0")
         expect(frame).toContain("user0 pro")
         expect(frame).not.toContain("example.test")
-        expect(frame).toContain("window0: осталось")
+        expect(frame).toContain("window0: remaining")
         expect(frame).toContain("░░░░░░░░░░ 0%")
-        expect(frame).toContain("Использовано 10 / 10")
+        expect(frame).toContain("Used 10 / 10")
         expect(headers[1].y).toBe(headers[0].y + headers[0].height)
         expect(headers[2].y).toBe(headers[1].y + headers[1].height)
         expect(scroll.y).toBe(headers[2].y + headers[2].height)
@@ -55,19 +55,19 @@ test("panel renders and scrolls within its allocated dimensions", async () => {
         scroll.scrollTo(12)
         await view.renderOnce()
         const middle = view.captureCharFrame()
-        expect(middle).toMatch(/window3: осталось\s+\?(?!\s*\d+%)/)
-        expect(middle).toMatch(/window4: осталось\s+∞(?!\s*\d+%)/)
+        expect(middle).toMatch(/window3: remaining\s+\?(?!\s*\d+%)/)
+        expect(middle).toMatch(/window4: remaining\s+∞(?!\s*\d+%)/)
         let allFrames = ""
         for (let offset = 0; offset <= scroll.scrollHeight; offset += 8) {
           scroll.scrollTo(offset)
           await view.renderOnce()
           allFrames += view.captureCharFrame()
         }
-        for (let i = 0; i < 12; i++) expect(allFrames).toContain(`window${i}: осталось`)
+        for (let i = 0; i < 12; i++) expect(allFrames).toContain(`window${i}: remaining`)
         for (let i = 0; i < 3; i++) expect(allFrames).toContain(`user${i} pro`)
         scroll.scrollTo(scroll.scrollHeight)
         await view.renderOnce()
-        expect(view.captureCharFrame()).toContain("window11: осталось")
+        expect(view.captureCharFrame()).toContain("window11: remaining")
         scroll.scrollTo(0)
         await view.renderOnce()
         scroll.scrollChildIntoView(nodes.find(node => node instanceof ScrollBoxRenderable)!.getChildren()[1].id)
@@ -78,7 +78,7 @@ test("panel renders and scrolls within its allocated dimensions", async () => {
       try {
         await side.renderOnce()
         await side.renderOnce()
-        expect(side.captureCharFrame()).toContain("12 квот · мин. 0% + ?")
+        expect(side.captureCharFrame()).toContain("12 quotas · min. 0% + ?")
         expect(side.captureCharFrame()).toContain("user0")
         expect(side.captureCharFrame()).toContain("user1")
         expect(side.captureCharFrame()).not.toContain("example.test")
@@ -138,15 +138,15 @@ test("sidebar left-aligns numbered accounts under full-width provider rules", as
         expect(frame).not.toMatch(/[┌┐└┘│]/)
         expect(lines.find(line => line.startsWith("─"))).toContain("─".repeat(width - 1))
         expect(frame).toContain("longusername")
-        expect(frame).toContain("60% 5ч")
-        expect(frame).toContain("80% 7д")
-        expect(frame).toContain("? 5ч")
-        expect(frame).toContain("∞ 7д")
+        expect(frame).toContain("60% 5h")
+        expect(frame).toContain("80% 7d")
+        expect(frame).toContain("? 5h")
+        expect(frame).toContain("∞ 7d")
         expect(lines.find(line => line.includes("CODEX"))!.startsWith("CODEX")).toBe(true)
-        ;["1. a", "2. c", "3. longusername", "60% 5ч", "80% 7д", "? 5ч", "∞ 7д"].forEach(text => {
+        ;["1. a", "2. c", "3. longusername", "60% 5h", "80% 7d", "? 5h", "∞ 7d"].forEach(text => {
           expect(lines.find(line => line.includes(text))!.startsWith("  ")).toBe(true)
         })
-        const bars = lines.filter(line => /[█░]+ \d+% [57][чд]/.test(line))
+        const bars = lines.filter(line => /[█░]+ \d+% [57][hd]/.test(line))
         expect(new Set(bars.map(line => line.match(/[█░]+/)![0].length)).size).toBe(1)
         expect(bars[0].match(/[█░]+/)![0].length).toBeGreaterThan(10)
         expect(frame).not.toContain("example.test")
@@ -158,19 +158,19 @@ test("sidebar left-aligns numbered accounts under full-width provider rules", as
           allFrames += view.captureCharFrame()
         }
         for (const name of ["1. a", "2. c", "3. longusername", "1. d"]) expect(allFrames).toContain(name)
-        expect(allFrames).toContain("Gemini · неделя")
-        expect(allFrames).toContain("Gemini · сессия")
-        expect(allFrames).toContain("Claude/GPT · неделя")
+        expect(allFrames).toContain("Gemini · weekly")
+        expect(allFrames).toContain("Gemini · session")
+        expect(allFrames).toContain("Claude/GPT · weekly")
         expect(allFrames).toContain("25%")
-        expect(allFrames).not.toContain("4 квот · мин.")
+        expect(allFrames).not.toContain("4 quotas · min.")
         expect(allFrames).not.toContain("example.test")
         expect(frame.match(/CODEX/g)?.length).toBe(1)
         expect(allFrames).toContain("AGY")
         expect(allFrames).toMatch(new RegExp(`AGY[^\n]*\n─{${width - 1}}`))
-        expect(allFrames).toMatch(/3\. longusername[^\n]*\n[^\n]*60% 5ч[^\n]*\n\s*\n[^\n]*80% 7д/)
-        const fiveHour = lines.findIndex(line => line.includes("60% 5ч"))
+        expect(allFrames).toMatch(/3\. longusername[^\n]*\n[^\n]*60% 5h[^\n]*\n\s*\n[^\n]*80% 7d/)
+        const fiveHour = lines.findIndex(line => line.includes("60% 5h"))
         expect(lines[fiveHour + 1].slice(1, width - 2).trim()).toBe("")
-        expect(lines[fiveHour + 2]).toContain("80% 7д")
+        expect(lines[fiveHour + 2]).toContain("80% 7d")
         const walk = (node: Renderable): Renderable[] => [node, ...node.getChildren().flatMap(walk)]
         for (const node of walk(view.renderer.root)) {
           expect(node.x + node.width).toBeLessThanOrEqual(width)
@@ -194,5 +194,67 @@ test("sidebar left-aligns numbered accounts under full-width provider rules", as
     server.stop()
     if (previousKey === undefined) delete process.env.OMNIROUTE_API_KEY
     else process.env.OMNIROUTE_API_KEY = previousKey
+  }
+})
+
+test("style options render real sidebar and details at both widths", async () => {
+  const result = await Bun.build({ entrypoints: ["src/tui.tsx"], target: "bun", external: ["@opencode/plugin/tui", "@opentui/solid", "solid-js"], plugins: [createSolidTransformPlugin()] })
+  const file = Bun.file(`${import.meta.dir}/../dist/render-styles-test.js`)
+  await Bun.write(file, result.outputs[0])
+  const plugin: Plugin.Definition = (await import(new URL("../dist/render-styles-test.js", import.meta.url).href)).default
+  const providers = [
+    { connectionId: "longaccountnameexample", provider: "codex", quotas: { weekly: { windowSeconds: 604800, remainingPercentage: 80 } } },
+    { connectionId: "b", provider: "codex", quotas: { session: { windowSeconds: 18000 }, weekly: { windowSeconds: 604800, unlimited: true } } },
+    { connectionId: "c", provider: "agy", quotas: { gemini_weekly: { quotaGroupId: "gemini", quotaAggregate: true, window: "weekly", remainingPercentage: 25 }, gemini_session: { quotaGroupId: "gemini", quotaAggregate: true, window: "session", unlimited: true }, claude_gpt_session: { quotaGroupId: "claude_gpt", quotaAggregate: true, window: "session", remainingPercentage: 42 } } },
+    { connectionId: "d", provider: "other", quotas: { model: { remainingPercentage: 50 } } },
+  ]
+  const server = Bun.serve({ port: 0, fetch: request => new URL(request.url).pathname === "/api/providers" ? Response.json({ connections: providers.map(p => ({ id: p.connectionId, email: `${p.connectionId}@example.test` })) }) : Response.json({ allowed: true, providers }) })
+  const previousKey = process.env.OMNIROUTE_API_KEY
+  process.env.OMNIROUTE_API_KEY = "test"
+  try {
+    for (const style of [undefined, "bar-style", "percents-only-style", "invalid"]) {
+      let sidebar: (input: { name: string }) => unknown = () => null
+      let panel: (input: { name: string }) => unknown = () => null
+      const context = { options: { baseUrl: server.url.href, style }, theme: { background: { base: "#101010" }, text: { base: "#ffffff", muted: "#777777" } }, ui: { slot: (slot: { append?: string, replace?: string, render: typeof sidebar }) => { if (slot.append === "sidebar.content") sidebar = slot.render; if (slot.append === "session.panel") panel = slot.render; return () => {} } }, keymap: { layer: () => {} } } as unknown as Parameters<typeof plugin.setup>[0]
+      const stop = await plugin.setup(context)
+      try {
+        await Bun.sleep(50)
+        for (const width of [32, 70]) {
+          const view = await testRender(() => sidebar({ name: "" }) as never, { width, height: 35 })
+          try {
+            await view.renderOnce()
+            await view.renderOnce()
+            const frame = view.captureCharFrame()
+            if (style === "percents-only-style") {
+              console.log(`FRAME ${width}\n${frame}`)
+              expect(frame).not.toMatch(/[█░]/)
+              expect(frame).toContain("ACCOUNT")
+              expect(frame).toContain("Gemini · session: ∞")
+              expect(frame).toContain("Claude/GPT · session: 42%")
+              expect(frame).toContain("min. 50%")
+              expect(frame).toMatch(/\?\s+∞/)
+              expect(frame).toMatch(/—\s+80%/)
+              expect(frame).toMatch(/b[^\n]*\n─+\n.*long/)
+              expect(frame).not.toMatch(/long[^\n]*\n─+/)
+              const walk = (node: Renderable): Renderable[] => [node, ...node.getChildren().flatMap(walk)]
+              for (const node of walk(view.renderer.root)) expect(node.x + node.width).toBeLessThanOrEqual(width)
+            } else expect(frame).toMatch(/[█░]/)
+          } finally { await view.dispose() }
+        }
+        const detail = await testRender(() => panel({ name: "omni-quota" }) as never, { width: 70, height: 35 })
+        try {
+          await detail.renderOnce()
+          await detail.renderOnce()
+          const frame = detail.captureCharFrame().split("\n").map(line => line.slice(0, -1)).join("\n")
+          if (style === "percents-only-style") expect(frame).not.toMatch(/[█░]/)
+          else expect(frame).toMatch(/[█░]/)
+        } finally { await detail.dispose() }
+      } finally { if (typeof stop === "function") stop() }
+    }
+  } finally {
+    server.stop(true)
+    if (previousKey === undefined) delete process.env.OMNIROUTE_API_KEY
+    else process.env.OMNIROUTE_API_KEY = previousKey
+    await file.delete()
   }
 })

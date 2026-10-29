@@ -10,15 +10,15 @@ const initial: State = { accounts: null, status: "loading", updatedAt: null }
 const duration = (value: unknown, fallback: number) =>
   typeof value === "number" && Number.isFinite(value) && value >= 1000 ? value : fallback
 const shortId = (id: string) => id.slice(0, 8)
-const accountName = (account: Account) => account.label ?? `Аккаунт [${shortId(account.id)}]`
+const accountName = (account: Account) => account.label ?? `Account [${shortId(account.id)}]`
 
-function windowType(quota: Quota): "5ч" | "7д" | null {
-  if (quota.windowSeconds === 18000) return "5ч"
-  if (quota.windowSeconds === 604800) return "7д"
+function windowType(quota: Quota): "5h" | "7d" | null {
+  if (quota.windowSeconds === 18000) return "5h"
+  if (quota.windowSeconds === 604800) return "7d"
   if (quota.windowSeconds != null) return null
   const name = `${quota.key ?? ""} ${quota.name}`.toLowerCase()
-  if (/\b(weekly|week|7d|7 days?)\b/.test(name)) return "7д"
-  if (/\b(5h|5 hours?)\b/.test(name)) return "5ч"
+  if (/\b(weekly|week|7d|7 days?)\b/.test(name)) return "7d"
+  if (/\b(5h|5 hours?)\b/.test(name)) return "5h"
   return null
 }
 
@@ -34,6 +34,7 @@ function reset(value: string | null): string {
 export default Plugin.define({
   id: "omni-quota",
   setup(ctx) {
+    const percentsOnly = ctx.options.style === "percents-only-style"
     const [state, setState] = createSignal(initial)
     const [sidebarWidth, setSidebarWidth] = createSignal(32)
     const contentWidth = () => Math.max(1, sidebarWidth() - 2)
@@ -44,7 +45,7 @@ export default Plugin.define({
       const filled = Math.round(Math.max(0, Math.min(100, remaining)) * barWidth() / 100)
       return `${"█".repeat(filled)}${"░".repeat(barWidth() - filled)} ${remaining}%`
     }
-    const compactWindow = (account: Account, label: "5ч" | "7д") => {
+    const compactWindow = (account: Account, label: "5h" | "7d") => {
       const quota = account.quotas.find(item => windowType(item) === label)
       if (!quota) return null
       return compactBar(quota.remaining === null ? null : Math.round(quota.remaining * 100) / 100, quota.unlimited)
@@ -52,7 +53,10 @@ export default Plugin.define({
     const agyGroups = (account: Account) => account.provider === "agy"
       ? account.quotas.filter(quota => quota.quotaAggregate && quota.quotaGroupId && quota.window)
       : []
-    const agyLabel = (quota: Quota) => `${quota.quotaGroupId === "gemini" ? "Gemini" : quota.quotaGroupId === "claude_gpt" ? "Claude/GPT" : quota.quotaGroupId} · ${quota.window === "weekly" ? "неделя" : quota.window === "session" ? "сессия" : quota.window}`
+    const agyLabel = (quota: Quota) => `${quota.quotaGroupId === "gemini" ? "Gemini" : quota.quotaGroupId === "claude_gpt" ? "Claude/GPT" : quota.quotaGroupId} · ${quota.window === "weekly" ? "weekly" : quota.window === "session" ? "session" : quota.window}`
+    const percent = (quota: Quota | undefined) => !quota ? "—" : quota.unlimited ? "∞" : quota.remaining === null ? "?" : `${Math.round(quota.remaining * 100) / 100}%`
+    const nameWidth = () => Math.max(7, sidebarWidth() - 17)
+    const tableRow = (account: Account, index: number) => `${`${index + 1}`.padEnd(3)}${truncate(accountName(account), nameWidth()).padEnd(nameWidth())} ${percent(account.quotas.find(q => windowType(q) === "5h")).padStart(6)} ${percent(account.quotas.find(q => windowType(q) === "7d")).padStart(6)}`
     const summaryBar = (account: Account) => {
       const limited = account.quotas.filter(quota => !quota.unlimited)
       const known = limited.flatMap(quota => quota.remaining === null ? [] : [quota.remaining])
@@ -80,20 +84,32 @@ export default Plugin.define({
         <text height={1} flexShrink={0}><strong>OmniRoute</strong> · {state().status}</text>
         <For each={groupAccounts(state().accounts ?? [])}>{(group, groupIndex) => <box width="100%" flexDirection="column" flexShrink={0} paddingTop={groupIndex() ? 2 : 0}>
           <text height={1} flexShrink={0}><strong>{group.provider.toUpperCase()}</strong></text>
-          <text height={1} flexShrink={0} fg={ctx.theme.text.muted}>{"─".repeat(sidebarWidth())}</text>
+          <Show when={percentsOnly} fallback={<text height={1} flexShrink={0} fg={ctx.theme.text.muted}>{"─".repeat(sidebarWidth())}</text>}>
+            <text wrapMode="none" fg={ctx.theme.text.muted}>{group.provider === "agy" ? "#  ACCOUNT / QUOTA" : `#  ${"ACCOUNT".padEnd(nameWidth())} ${"5h".padStart(6)} ${"7d".padStart(6)}`}</text>
+          </Show>
+          <Show when={percentsOnly} fallback={<>
           <For each={group.accounts}>{(account, accountIndex) => <box width="100%" flexShrink={0} flexDirection="column" paddingLeft={2} paddingTop={accountIndex() ? 1 : 0}>
               <text wrapMode="none">{truncate(`${accountIndex() + 1}. ${accountName(account)}`, contentWidth())}</text>
               <Show when={agyGroups(account).length} fallback={<Show when={hasWindows(account)} fallback={<>
                 <text wrapMode="none">{truncate(summarizeQuotas(account.quotas), contentWidth())}</text>
                 <text wrapMode="none">{summaryBar(account)}</text>
               </>}>
-                <For each={(["5ч", "7д"] as const).filter(label => compactWindow(account, label) !== null)}>{(label, index) => <><Show when={index() > 0}><text height={1}> </text></Show><text wrapMode="none">{compactWindow(account, label)} {label}</text></>}</For>
+                <For each={(["5h", "7d"] as const).filter(label => compactWindow(account, label) !== null)}>{(label, index) => <><Show when={index() > 0}><text height={1}> </text></Show><text wrapMode="none">{compactWindow(account, label)} {label}</text></>}</For>
               </Show>}>
                 <For each={agyGroups(account)}>{quota => <><text wrapMode="none">{truncate(agyLabel(quota), contentWidth())}</text><text wrapMode="none">{compactBar(quota.remaining === null ? null : Math.round(quota.remaining * 100) / 100, quota.unlimited)}</text></>}</For>
               </Show>
           </box>}</For>
+          </>}>
+            <For each={group.accounts}>{(account, accountIndex) => <box width="100%" flexShrink={0} flexDirection="column">
+              <Show when={accountIndex() > 0}><text fg={ctx.theme.text.muted}>{"─".repeat(sidebarWidth())}</text></Show>
+              <text wrapMode="none">{agyGroups(account).length ? truncate(`${accountIndex() + 1}  ${accountName(account)}`, sidebarWidth()) : tableRow(account, accountIndex())}</text>
+              <Show when={agyGroups(account).length} fallback={<Show when={!hasWindows(account)}><text wrapMode="none">{truncate(`   ${summarizeQuotas(account.quotas)}`, sidebarWidth())}</text></Show>}>
+                <For each={agyGroups(account)}>{quota => <text wrapMode="none">{truncate(`   ${agyLabel(quota)}: ${percent(quota)}`, sidebarWidth())}</text>}</For>
+              </Show>
+            </box>}</For>
+          </Show>
         </box>}</For>
-        <text>/omni-quota — подробнее</text>
+        <text>/omni-quota — details</text>
       </box>},
     })
 
@@ -102,18 +118,18 @@ export default Plugin.define({
       render: input => <Show when={input.name === "omni-quota"}>
         <box flexDirection="column" height="100%" backgroundColor={ctx.theme.background.base}>
           <text flexShrink={0}><strong>{`OmniRoute: ${state().status}`}</strong>{" · /omni-quota-refresh"}</text>
-          <text flexShrink={0}>Кеш OmniRoute · не гарантия маршрута</text>
-          <Show when={state().updatedAt}>{time => <text flexShrink={0}>{`Получено плагином: ${new Date(time()).toLocaleString()}`}</text>}</Show>
+          <text flexShrink={0}>Cache · no routing guarantee</text>
+          <Show when={state().updatedAt}>{time => <text flexShrink={0}>{`Received by plugin: ${new Date(time()).toLocaleString()}`}</text>}</Show>
           <scrollbox flexGrow={1} flexShrink={1}>
             <For each={groupAccounts(state().accounts ?? [])}>{group => <box flexDirection="column" paddingTop={1}>
               <text><strong>{group.provider}</strong></text>
               <For each={group.accounts}>{account => <box flexDirection="column" paddingLeft={1}>
               <text><strong>{accountName(account)} {account.plan}</strong></text>
               <For each={account.quotas}>{quota => <box flexDirection="column">
-                <text>{quota.name}: осталось</text>
-                {bar(quota.remaining, quota.unlimited)}
-                <text>Использовано {quota.used ?? "?"} / {quota.total ?? "?"}</text>
-                <text>Сброс: {reset(quota.resetAt)}</text>
+                <text>{quota.name}: remaining</text>
+                 {percentsOnly ? <text>{percent(quota)}</text> : bar(quota.remaining, quota.unlimited)}
+                <text>Used {quota.used ?? "?"} / {quota.total ?? "?"}</text>
+                <text>Reset: {reset(quota.resetAt)}</text>
               </box>}</For>
               </box>}</For>
             </box>}</For>
@@ -122,10 +138,10 @@ export default Plugin.define({
       </Show>,
     })
     ctx.keymap.layer(() => ({ mode: "global", commands: [
-      { id: "omni-quota.open", title: "OmniRoute: квоты", palette: true, slash: { name: "omni-quota" }, run: () => {
-        if (!ctx.ui.panel.open("omni-quota")) ctx.ui.toast.show({ message: "Откройте сессию для просмотра квот", variant: "info" })
+      { id: "omni-quota.open", title: "OmniRoute: quotas", palette: true, slash: { name: "omni-quota" }, run: () => {
+        if (!ctx.ui.panel.open("omni-quota")) ctx.ui.toast.show({ message: "Open a session to view quotas", variant: "info" })
       } },
-      { id: "omni-quota.refresh", title: "OmniRoute: обновить квоты", palette: true, slash: { name: "omni-quota-refresh" }, run: () => { void poller.refresh() } },
+      { id: "omni-quota.refresh", title: "OmniRoute: refresh quotas", palette: true, slash: { name: "omni-quota-refresh" }, run: () => { void poller.refresh() } },
     ] }))
     return () => { poller.stop(); removeSidebar(); removePanel() }
   },
