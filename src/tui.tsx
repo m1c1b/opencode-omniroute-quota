@@ -44,13 +44,20 @@ export default Plugin.define({
     const [sidebarWidth, setSidebarWidth] = createSignal(32)
     const summary = () => {
       const group = groupAccounts(state().accounts ?? [])[0]
-      if (!group) return ""
+      if (!group) return null
       const values = averageWindows(group.accounts)
-      const windows = (["5h", "7d"] as const).flatMap(window => values[window] === null ? [] : [`${window} ${Math.round(values[window])}%`]).join(" · ")
-      if (!windows) return ""
-      const named = `${group.provider.toUpperCase()} · ${windows}`
-      const status = state().status !== "ready" ? ` · ${state().status}` : ""
-      return `▶ OmniRoute  ${named}${status}`.length <= sidebarWidth() ? named : windows
+      return { provider: group.provider.toUpperCase(), windows: (["5h", "7d"] as const).flatMap(window => values[window] === null ? [] : [{ label: window, value: `${Math.round(values[window])}%` }]) }
+    }
+    const updated = () => {
+      const value = state().updatedAt
+      if (value === null || !Number.isFinite(value)) return "—"
+      const date = new Date(value)
+      return Number.isNaN(date.getTime()) ? "—" : date.toLocaleTimeString("en-GB", { hour12: false })
+    }
+    const headerBreak = () => {
+      const item = summary()
+      const detail = `${item ? `${item.provider}${item.windows.map(window => `  ${window.label} ${window.value}`).join(" ·")}  ` : ""}${updated()}`
+      return `▶ OmniRoute · (${detail})${state().status === "ready" ? "" : ` · ${state().status}`}`.length > sidebarWidth()
     }
     const contentWidth = () => Math.max(1, sidebarWidth() - 2)
     const compactBar = (remaining: number | null, unlimited = false) => {
@@ -100,7 +107,7 @@ export default Plugin.define({
         let sidebar!: BoxRenderable
         onMount(() => setSidebarWidth(sidebar.width))
         return <box ref={sidebar} flexDirection="column" width="100%" paddingTop={1} onSizeChange={function () { setSidebarWidth(this.width) }}>
-        <text flexShrink={0} onMouseUp={() => setExpanded(!expanded())}><strong>{expanded() ? "▼" : "▶"} OmniRoute</strong>{expanded() ? ` · ${percentsOnly ? state().status : state().status === "ready" ? "Account quotas" : `Account quotas · ${state().status}`}` : `${summary() ? `  ${summary()}` : ""}${state().status !== "ready" ? ` · ${state().status}` : ""}`}</text>
+        <text flexShrink={0} onMouseUp={() => setExpanded(!expanded())}><strong>{expanded() ? "▼" : "▶"} OmniRoute</strong><span style={{ fg: ctx.theme.text.muted }}> · </span><Show when={expanded()} fallback={<>{headerBreak() ? "\n" : ""}<span style={{ fg: ctx.theme.text.muted }}>(</span><Show when={summary()}>{item => <>{item().provider}<For each={item().windows}>{(window, index) => <><span style={{ fg: ctx.theme.text.muted }}>{index() ? " · " : "  "}{window.label} </span>{window.value}</>}</For><span style={{ fg: ctx.theme.text.muted }}>  </span></>}</Show><span style={{ fg: ctx.theme.text.muted }}>{updated()})</span></>}><span style={{ fg: ctx.theme.text.muted }}>Updated {updated()}</span></Show><Show when={state().status !== "ready"}><span style={{ fg: ctx.theme.text.muted }}> · {state().status}</span></Show></text>
         <Show when={expanded()}>
         <For each={groupAccounts(state().accounts ?? [])}>{(group, groupIndex) => <box width="100%" flexDirection="column" flexShrink={0} paddingTop={groupIndex() ? 2 : 0}>
           <text height={1} flexShrink={0} fg={ctx.theme.text.action.primary.base}><strong>{group.provider.toUpperCase()}</strong></text>

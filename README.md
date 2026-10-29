@@ -42,7 +42,8 @@ Use a `file://` URL pointing to the absolute path of the checkout instead of the
 ## Options
 
 Click the OmniRoute sidebar header to collapse or expand the whole section. It starts expanded.
-When collapsed, the header shows remaining percentages for available 5h and 7d windows in the first displayed provider group only. The provider name appears when it fits.
+When collapsed, the header shows remaining percentages for available 5h and 7d windows in the first displayed provider group only. The header wraps when needed to retain the provider and update time.
+The update time is the last successful plugin fetch, not the freshness of the server's upstream data. A stale or unavailable status remains visible after a failed fetch.
 For each window, the percentage is `(Σtotal - Σused) / Σtotal * 100`, clamped to 0–100. It sums matching quotas across accounts, not their percentages.
 Only finite actual `used` and `total` values with `total > 0` qualify; unlimited quotas are excluded. The header never derives usage from `remaining` or `remainingPercentage`. Antigravity uses aggregate groups with explicit matching durations only.
 The header marks stale or unavailable data; windows without eligible quotas are omitted without falling back to another provider. Individual account displays still use the reported remaining percentage when available.

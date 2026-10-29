@@ -20,9 +20,12 @@ test("prevents overlap, preserves stale data and stops", async () => {
     release?.()
     await Bun.sleep(20)
     expect(states.at(-1)?.status).toBe("ready")
+    const updatedAt = states.at(-1)?.updatedAt
+    expect(updatedAt).not.toBeNull()
     fail = true
     await poller.refresh()
     expect(states.at(-1)?.status).toBe("stale")
+    expect(states.at(-1)?.updatedAt).toBe(updatedAt)
     expect(states.at(-1)?.accounts).toEqual([])
     poller.stop()
     await poller.refresh()
