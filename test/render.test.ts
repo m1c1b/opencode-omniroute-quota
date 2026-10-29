@@ -329,11 +329,14 @@ test("style options render real sidebar and details at both widths", async () =>
             await view.mockMouse.click(2, 1)
             await view.renderOnce()
             const collapsed = view.captureCharFrame()
-            expect(collapsed.split("\n").find(line => line.includes("⚙️"))!.trim()).toBe("▶ ⚙️ | CODEX | 0% | 80% |")
+            expect(collapsed.split("\n").find(line => line.includes("⚙️"))!.trim()).toBe("▶ ⚙️ · CODEX · 0% · 80% ·")
             expect(collapsed).not.toMatch(/\d\d:\d\d:\d\d|Updated/)
             expect(collapsed).not.toContain("[")
             const headerLine = view.captureSpans().lines.find(line => line.spans.some(span => span.text.includes("CODEX")))!
-            for (const span of headerLine.spans.filter(span => span.text.trim())) {
+            const dots = headerLine.spans.filter(span => span.text.includes("·"))
+            expect(dots.map(span => span.text).join("").match(/·/g)).toHaveLength(4)
+            dots.forEach(span => expect(span.fg.toString()).toBe(RGBA.fromHex("#777777").toString()))
+            for (const span of headerLine.spans.filter(span => !span.text.includes("·")).filter(span => span.text.trim())) {
               expect(span.fg.toString()).toBe(providerSpan.fg.toString())
               expect(span.attributes).toBe(providerSpan.attributes)
             }
@@ -371,7 +374,7 @@ test("collapsed summary uses only the first displayed provider", async () => {
   const previousKey = process.env.OMNIROUTE_API_KEY
   process.env.OMNIROUTE_API_KEY = "test"
   try {
-    for (const [firstQuotas, expected] of [[{ session: { windowSeconds: 18000, used: 75, total: 100, remainingPercentage: 90 } }, "▶ ⚙️ | FIRST | 25% | — |"], [{ weekly: { windowSeconds: 604800, used: 5, total: 100 } }, "▶ ⚙️ | FIRST | — | 95% |"], [{ other: { remainingPercentage: 25 }, weekly: { windowSeconds: 604800, unlimited: true }, session: { windowSeconds: 18000, remaining: 25, total: 100 } }, "▶ ⚙️ | FIRST | — | — |"]] as const) {
+    for (const [firstQuotas, expected] of [[{ session: { windowSeconds: 18000, used: 75, total: 100, remainingPercentage: 90 } }, "▶ ⚙️ · FIRST · 25% · — ·"], [{ weekly: { windowSeconds: 604800, used: 5, total: 100 } }, "▶ ⚙️ · FIRST · — · 95% ·"], [{ other: { remainingPercentage: 25 }, weekly: { windowSeconds: 604800, unlimited: true }, session: { windowSeconds: 18000, remaining: 25, total: 100 } }, "▶ ⚙️ · FIRST · — · — ·"]] as const) {
       const providers = [
         { connectionId: "z", provider: "second", quotas: { session: { windowSeconds: 18000, used: 10, total: 100, remainingPercentage: 90 }, weekly: { windowSeconds: 604800, used: 20, total: 100, remainingPercentage: 80 } } },
         { connectionId: "a", provider: "first", quotas: firstQuotas },
