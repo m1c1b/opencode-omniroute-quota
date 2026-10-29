@@ -3,6 +3,39 @@ import { createSolidTransformPlugin } from "@opentui/solid/bun-plugin"
 import { insert, testRender, useRenderer } from "@opentui/solid"
 import { BoxRenderable, RGBA, ScrollBoxRenderable, type Renderable } from "@opentui/core"
 import type { Plugin } from "@opencode/plugin/tui"
+import { createRoot } from "solid-js"
+
+test("Escape closes only the quota panel and slots are removed", async () => {
+  const result = await Bun.build({ entrypoints: ["src/tui.tsx"], target: "bun", external: ["@opencode/plugin/tui", "@opentui/solid", "solid-js"], plugins: [createSolidTransformPlugin()] })
+  const file = Bun.file(`${import.meta.dir}/../dist/render-key-test.js`)
+  await Bun.write(file, result.outputs[0])
+  const plugin: Plugin.Definition = (await import(new URL("../dist/render-key-test.js", import.meta.url).href)).default
+  type Layer = { enabled?: boolean; commands: { id?: string; bind?: string; run: () => void }[] }
+  const layers: (() => Layer)[] = []
+  let current: string | undefined
+  let closes = 0
+  let removed = 0
+  const context = { options: {}, ui: { panel: { open: (name: string) => { current = name; return true }, current: () => current && { name: current }, close: () => { closes++; current = undefined } }, slot: () => () => { removed++ } }, keymap: { layer: (factory: () => Layer) => layers.push(factory) } } as unknown as Plugin.Context
+  let dispose = () => {}
+  const stop = await createRoot(end => { dispose = end; return plugin.setup(context) })
+  try {
+    const back = layers.find(layer => layer().commands.some(command => command.bind === "escape"))!
+    const open = layers.flatMap(layer => layer().commands).find(command => command.id === "omni-quota.open")!
+    expect(back().enabled).toBe(false)
+    open.run()
+    expect(back().enabled).toBe(true)
+    back().commands[0].run()
+    expect(closes).toBe(1)
+    expect(back().enabled).toBe(false)
+    current = "another-panel"
+    expect(back().enabled).toBe(false)
+  } finally {
+    if (typeof stop === "function") stop()
+    dispose()
+    await file.delete()
+  }
+  expect(removed).toBe(2)
+})
 
 test("Shaded matches ascii-bar partial fill levels", async () => {
   const result = await Bun.build({ entrypoints: ["src/tui.tsx"], target: "bun", external: ["@opencode/plugin/tui", "@opentui/solid", "solid-js"], plugins: [createSolidTransformPlugin()] })
@@ -44,8 +77,9 @@ test("panel renders and scrolls within its allocated dimensions", async () => {
         const scroll = nodes.find(node => node instanceof ScrollBoxRenderable) as ScrollBoxRenderable
         await view.renderOnce()
         const frame = view.captureCharFrame()
-        const headers = nodes.slice(2, 5)
+        const headers = nodes.slice(2, 6)
         expect(frame).toContain("OmniRoute: ready")
+        expect(frame).toContain("Esc Back")
         expect(frame).toContain("Cache · no routing guarantee")
         expect(frame).toContain("Received by plugin:")
         expect(frame).toContain("provider0")
@@ -56,7 +90,8 @@ test("panel renders and scrolls within its allocated dimensions", async () => {
         expect(frame).toContain("Used 10 / 10")
         expect(headers[1].y).toBe(headers[0].y + headers[0].height)
         expect(headers[2].y).toBe(headers[1].y + headers[1].height)
-        expect(scroll.y).toBe(headers[2].y + headers[2].height)
+        expect(headers[3].y).toBe(headers[2].y + headers[2].height)
+        expect(scroll.y).toBe(headers[3].y + headers[3].height)
         expect(scroll.y + scroll.height).toBe(18)
         expect(scroll.scrollHeight).toBeGreaterThan(scroll.height)
         expect((nodes[1] as BoxRenderable).backgroundColor).toEqual(RGBA.fromHex("#101010"))

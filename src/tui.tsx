@@ -131,6 +131,7 @@ export default Plugin.define({
       render: input => <Show when={input.name === "omni-quota"}>
         <box flexDirection="column" height="100%" backgroundColor={ctx.theme.background.base}>
           <text flexShrink={0}><strong>{`OmniRoute: ${state().status}`}</strong>{" · /omni-quota-refresh"}</text>
+          <text flexShrink={0} onMouseUp={() => ctx.ui.panel.close()}>Esc Back</text>
           <text flexShrink={0}>Cache · no routing guarantee</text>
           <Show when={state().updatedAt}>{time => <text flexShrink={0}>{`Received by plugin: ${new Date(time()).toLocaleString()}`}</text>}</Show>
           <scrollbox flexGrow={1} flexShrink={1}>
@@ -150,6 +151,9 @@ export default Plugin.define({
         </box>
       </Show>,
     })
+    ctx.keymap.layer(() => ({ mode: "global", enabled: ctx.ui.panel.current()?.name === "omni-quota", commands: [
+      { bind: "escape", run: () => ctx.ui.panel.close() },
+    ] }))
     ctx.keymap.layer(() => ({ mode: "global", commands: [
       { id: "omni-quota.open", title: "OmniRoute: quotas", palette: true, slash: { name: "omni-quota" }, run: () => {
         if (!ctx.ui.panel.open("omni-quota")) ctx.ui.toast.show({ message: "Open a session to view quotas", variant: "info" })
