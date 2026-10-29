@@ -12,7 +12,7 @@ This package is an OpenCode 2.1 TUI plugin for OmniRoute account quotas. Keep th
 
 ## Quotas and presentation
 
-- The section starts expanded. Its collapsed header summarizes only the first displayed provider, with no fallback to another provider. The expanded header shows the last successful plugin fetch time, not upstream cache freshness.
+- Provider groups retain API order unless `pinnedProvider` matches a group, which moves it first. Account order remains unchanged. The section starts expanded. Its collapsed header summarizes only the first displayed provider, with no fallback to another provider. The expanded header shows the last successful plugin fetch time, not upstream cache freshness.
 - Automatic polling only reads cached usage. Manual refresh first posts to provider limits, then reads the cache; it requires a management token with `manage` or `admin` scope.
 - For each 5h or 7d window, use `(Σtotal - Σused) / Σtotal * 100`, clamped to 0–100. Include only matching, limited quotas with finite actual `used` and `total` and positive `total`; never derive header usage from remaining percentages. Missing windows display `—`.
 - Individual quotas use reported remaining percentages when available. For AGY, use explicit aggregate groups and explicit matching durations for header windows; do not invent a 5h duration for session groups or infer shared pools from model names. Retain individual quotas in details.

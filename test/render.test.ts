@@ -433,3 +433,50 @@ test("collapsed summary uses only the first displayed provider", async () => {
     await file.delete()
   }
 })
+
+test("pinned provider appears first and supplies the collapsed summary", async () => {
+  const { file, url } = await buildRenderPlugin("render-pinned-provider-test")
+  const plugin: Plugin.Definition = (await import(url)).default
+  const providers = [
+    { connectionId: "a", provider: "codex", quotas: { session: { windowSeconds: 18000, used: 10, total: 100 } } },
+    { connectionId: "b", provider: "claude", quotas: { weekly: { windowSeconds: 604800, used: 25, total: 100 } } },
+    { connectionId: "c", provider: "agy", quotas: {} },
+  ]
+  const server = Bun.serve({ port: 0, fetch: request => new URL(request.url).pathname === "/api/providers" ? Response.json({ connections: [] }) : Response.json({ allowed: true, providers }) })
+  const restoreKey = setTestApiKey()
+  try {
+    for (const style of ["bar-style", "percents-only-style"]) {
+      const { context, slots } = renderContext(server.url.href, style, " CLAUDE ")
+      const stop = await plugin.setup(context)
+      try {
+        for (const width of [32, 70]) {
+          const view = await testRender(() => slots["sidebar.content"]({ name: "" }) as never, { width, height: 30 })
+          try {
+            await waitFor(async () => { await view.renderOnce(); return view.captureCharFrame().includes("AGY") }, "pinned provider data")
+            const expanded = view.captureCharFrame()
+            expect(expanded.indexOf("CLAUDE")).toBeLessThan(expanded.indexOf("CODEX"))
+            expect(expanded.indexOf("CODEX")).toBeLessThan(expanded.indexOf("AGY"))
+            await view.mockMouse.click(2, 1)
+            await view.renderOnce()
+            expect(view.captureCharFrame().split("\n").find(line => line.includes("⚙️"))!.trim()).toBe("▶ ⚙️ · CLAUDE · — · 75%")
+            const walk = (node: Renderable): Renderable[] => [node, ...node.getChildren().flatMap(walk)]
+            for (const node of walk(view.renderer.root)) expect(node.x + node.width).toBeLessThanOrEqual(width)
+            await view.mockMouse.click(2, 1)
+          } finally { await view.dispose() }
+        }
+        const detail = await testRender(() => slots["session.panel"]({ name: "omni-quota" }) as never, { width: 70, height: 30 })
+        try {
+          await detail.renderOnce()
+          await detail.renderOnce()
+          const frame = detail.captureCharFrame()
+          expect(frame.indexOf("claude")).toBeGreaterThanOrEqual(0)
+          expect(frame.indexOf("claude")).toBeLessThan(frame.indexOf("codex"))
+        } finally { await detail.dispose() }
+      } finally { if (typeof stop === "function") stop() }
+    }
+  } finally {
+    server.stop(true)
+    restoreKey()
+    await file.delete()
+  }
+})

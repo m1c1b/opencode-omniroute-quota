@@ -48,7 +48,8 @@ export default Plugin.define({
     const [state, setState] = createSignal(initial)
     const [expanded, setExpanded] = createSignal(true)
     const [sidebarWidth, setSidebarWidth] = createSignal(32)
-    const summaries = () => groupAccounts(state().accounts ?? []).slice(0, 1).map(group => {
+    const groups = () => groupAccounts(state().accounts ?? [], typeof ctx.options.pinnedProvider === "string" ? ctx.options.pinnedProvider : undefined)
+    const summaries = () => groups().slice(0, 1).map(group => {
       const values = remainingByWindow(group.accounts)
       return { provider: group.provider.toUpperCase(), windows: (["5h", "7d"] as const).map(window => values[window] == null ? "—" : `${Math.round(values[window])}%`) }
     })
@@ -101,7 +102,7 @@ export default Plugin.define({
           <Show when={state().status !== "ready"}><text fg={ctx.theme.text.muted}>· {state().status}</text></Show>
         </box>}><text flexShrink={0} onMouseUp={() => setExpanded(false)}><strong>▼ ⚙️ Quota</strong><span style={{ fg: ctx.theme.text.muted }}> · Updated {updated()}</span><Show when={state().status !== "ready"}><span style={{ fg: ctx.theme.text.muted }}> · {state().status}</span></Show></text></Show>
         <Show when={expanded()}>
-        <For each={groupAccounts(state().accounts ?? [])}>{(group, groupIndex) => <box width="100%" flexDirection="column" flexShrink={0} paddingTop={groupIndex() ? 2 : 0}>
+        <For each={groups()}>{(group, groupIndex) => <box width="100%" flexDirection="column" flexShrink={0} paddingTop={groupIndex() ? 2 : 0}>
           <text height={1} flexShrink={0} fg={ctx.theme.text.action.primary.base}><strong>{group.provider.toUpperCase()}</strong></text>
           <Show when={percentsOnly}>
             <text wrapMode="none" fg={ctx.theme.text.muted}>{tableHeader(group.accounts, group.provider === "agy", sidebarWidth())}</text>
@@ -145,7 +146,7 @@ export default Plugin.define({
           <text flexShrink={0}>Cache · no routing guarantee</text>
           <Show when={state().updatedAt}>{time => <text flexShrink={0}>{`Received by plugin: ${new Date(time()).toLocaleString()}`}</text>}</Show>
           <scrollbox flexGrow={1} flexShrink={1}>
-            <For each={groupAccounts(state().accounts ?? [])}>{group => <box flexDirection="column" paddingTop={1}>
+            <For each={groups()}>{group => <box flexDirection="column" paddingTop={1}>
               <text><strong>{group.provider}</strong></text>
               <For each={group.accounts}>{account => <box flexDirection="column" paddingLeft={1}>
               <text><strong>{accountName(account)} {account.plan}</strong></text>

@@ -138,14 +138,18 @@ export function parseLabels(value: unknown): Map<string, string> {
   return labels
 }
 
-export function groupAccounts(accounts: Account[]): { provider: string; accounts: Account[] }[] {
+export function groupAccounts(accounts: Account[], pinnedProvider?: string): { provider: string; accounts: Account[] }[] {
   const groups = new Map<string, Account[]>()
   for (const account of accounts) {
     const group = groups.get(account.provider) ?? []
     group.push(account)
     groups.set(account.provider, group)
   }
-  return [...groups].map(([provider, accounts]) => ({ provider, accounts }))
+  const result = [...groups].map(([provider, accounts]) => ({ provider, accounts }))
+  const pinned = pinnedProvider?.trim().toLowerCase()
+  const index = pinned ? result.findIndex(group => group.provider.toLowerCase() === pinned) : -1
+  if (index > 0) result.unshift(...result.splice(index, 1))
+  return result
 }
 
 function rethrowCancellation(signal: AbortSignal, error: unknown): void {

@@ -1,6 +1,23 @@
 import { describe, expect, test } from "bun:test"
 import { remainingByWindow, fetchQuotas, groupAccounts, parseLabels, parseResponse, quotaSummary, summarizeQuotas, type Quota } from "../src/quota"
 
+test("pinned provider moves first without changing account or other provider order", () => {
+  const accounts = parseResponse({ allowed: true, providers: [
+    { connectionId: "a", provider: "codex", quotas: {} },
+    { connectionId: "b", provider: "claude", quotas: {} },
+    { connectionId: "c", provider: "agy", quotas: {} },
+    { connectionId: "d", provider: "claude", quotas: {} },
+  ] })
+  const snapshot = [...accounts]
+  const order = (pin?: string) => groupAccounts(accounts, pin).map(group => [group.provider, group.accounts.map(account => account.id)])
+  const original = [["codex", ["a"]], ["claude", ["b", "d"]], ["agy", ["c"]]]
+  expect(order("  CLAUDE ")).toEqual([["claude", ["b", "d"]], ["codex", ["a"]], ["agy", ["c"]]])
+  expect(order()).toEqual(original)
+  expect(order("unknown")).toEqual(original)
+  expect(order(" ")).toEqual(original)
+  expect(accounts).toEqual(snapshot)
+})
+
 test("window summary sums actual usage and excludes ineligible quotas", () => {
   const accounts = parseResponse({ allowed: true, providers: [
     { connectionId: "a", provider: "agy", quotas: { one: { quotaAggregate: true, windowSeconds: 604800, used: 100, total: 100, remainingPercentage: 100 }, model: { windowSeconds: 604800, used: 0, total: 1000 }, weekly: { quotaAggregate: true, used: 0, total: 1000 } } },

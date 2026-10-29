@@ -19,7 +19,8 @@ The package has not yet been published to npm. After publication, add the follow
       "package": "opencode-omniroute-quota",
       "options": {
         "baseUrl": "https://omniroute.example.com",
-        "apiKey": "{env:OMNIROUTE_API_KEY}"
+        "apiKey": "{env:OMNIROUTE_API_KEY}",
+        "pinnedProvider": "codex"
       }
     }
   ]
@@ -102,6 +103,7 @@ All options belong in the plugin entry's `options` object.
 | `baseUrl` | `OMNIROUTE_BASE_URL`, or empty | OmniRoute server URL. An explicit string takes precedence over the environment variable. |
 | `apiKey` | `OMNIROUTE_API_KEY`, or empty | Bearer key or `{env:VARIABLE_NAME}` reference. An explicit string takes precedence over the environment variable. |
 | `style` | `bar-style` | Use `bar-style` for bars or `percents-only-style` for a table without bars. Applies to the sidebar and details panel. Invalid values use `bar-style`. |
+| `pinnedProvider` | unset | Provider code, such as `codex`, `claude`, or `agy`. Moves the matching provider first in the sidebar and details; the collapsed header summarizes it. Matching ignores case and surrounding whitespace. If unset or unknown, providers retain API order. |
 | `intervalMs` | `60000` | Polling interval in milliseconds. Must be a finite number of at least `1000`; invalid values use the default. |
 | `timeoutMs` | `10000` | Request timeout in milliseconds. Must be a finite number of at least `1000`; invalid values use the default. |
 
