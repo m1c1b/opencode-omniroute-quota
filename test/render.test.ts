@@ -45,6 +45,30 @@ test("Escape closes only the quota panel and slots are removed", async () => {
   expect(removed).toBe(2)
 })
 
+test("refresh command reports authorization failures without server details", async () => {
+  const result = await Bun.build({ entrypoints: ["src/tui.tsx"], target: "bun", external: ["@opencode/plugin/tui", "@opentui/solid", "solid-js"], plugins: [createSolidTransformPlugin()] })
+  const file = Bun.file(`${import.meta.dir}/../dist/render-refresh-test.js`)
+  await Bun.write(file, result.outputs[0])
+  const plugin: Plugin.Definition = (await import(new URL("../dist/render-refresh-test.js", import.meta.url).href)).default
+  const server = Bun.serve({ port: 0, fetch: request => request.method === "POST" ? new Response("sensitive server detail", { status: 403 }) : Response.json({ allowed: true, providers: [] }) })
+  type Layer = { commands: { id?: string; run: () => void }[] }
+  const layers: (() => Layer)[] = []
+  const messages: string[] = []
+  const context = { options: { baseUrl: server.url.href, apiKey: "test" }, ui: { panel: { current: () => undefined }, slot: () => () => {}, toast: { show: ({ message }: { message: string }) => messages.push(message) } }, keymap: { layer: (factory: () => Layer) => layers.push(factory) } } as unknown as Plugin.Context
+  let dispose = () => {}
+  const stop = await createRoot(end => { dispose = end; return plugin.setup(context) })
+  try {
+    layers.flatMap(layer => layer().commands).find(command => command.id === "omni-quota.refresh")!.run()
+    for (let i = 0; i < 100 && !messages.length; i++) await Bun.sleep(5)
+    expect(messages).toEqual(["Refresh requires a management token with manage or admin scope"])
+  } finally {
+    if (typeof stop === "function") stop()
+    dispose()
+    server.stop(true)
+    await file.delete()
+  }
+})
+
 test("Shaded matches ascii-bar partial fill levels", async () => {
   const result = await Bun.build({ entrypoints: ["src/tui.tsx"], target: "bun", external: ["@opencode/plugin/tui", "@opentui/solid", "solid-js"], plugins: [createSolidTransformPlugin()] })
   const file = Bun.file(`${import.meta.dir}/../dist/render-shaded-test.js`)

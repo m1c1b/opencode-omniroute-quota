@@ -155,3 +155,19 @@ export async function fetchQuotas(baseUrl: string, apiKey: string, signal: Abort
   } catch { /* Metadata is optional. */ }
   return accounts
 }
+
+function refreshResult(body: Record<string, unknown> | null): "success" | "partial" | "error" {
+  if (typeof body?.failed !== "number" || !Number.isInteger(body.failed) || body.failed < 0) return "error"
+  return body.failed > 0 ? "partial" : "success"
+}
+
+export async function refreshProviderLimits(baseUrl: string, apiKey: string, signal: AbortSignal): Promise<"success" | "partial" | "auth" | "error"> {
+  const base = new URL(baseUrl)
+  if (!["http:", "https:"].includes(base.protocol) || base.username || base.password) throw new Error("invalid URL")
+  const response = await fetch(new URL("/api/usage/provider-limits", base), {
+    method: "POST", headers: { Authorization: `Bearer ${apiKey}` }, redirect: "error", signal,
+  })
+  if (response.status === 401 || response.status === 403) return "auth"
+  if (!response.ok) return "error"
+  return refreshResult(record(await response.json()))
+}

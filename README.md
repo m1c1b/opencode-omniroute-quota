@@ -109,7 +109,15 @@ An empty or unresolved key, or an empty base URL, produces `unavailable` without
 
 ## Usage
 
-Open a session and its sidebar. Run `/omni-quota` to open the details panel, or `/omni-quota-refresh` to refresh the cache. Both commands are also available in the command palette. Polling is automatic; requests do not overlap.
+Open a session and its sidebar. Both commands are also available in the command palette.
+
+| Action | Behavior |
+| --- | --- |
+| Automatic polling | Reads the existing usage cache with GET. It never triggers a server refresh. |
+| `/omni-quota` | Opens the details panel. |
+| `/omni-quota-refresh` | Sends POST to refresh provider limits, waits for the server, then reads the usage cache. |
+
+Manual refresh requires the configured API key to be an OmniRoute management token with the `manage` or `admin` scope. A regular usage key may read quotas but receive HTTP 403 for manual refresh. The same `apiKey` option is used for both operations. The POST has a five-minute timeout and is not retried; the server may continue working after a timeout. Partial failures are reported without exposing server error details.
 
 The displayed fetch time is not the age of OmniRoute's upstream data. Quotas do not guarantee route availability. If a request returns HTTP 401 or 403, check the key and OmniRoute's `allowUsageCommand` setting.
 

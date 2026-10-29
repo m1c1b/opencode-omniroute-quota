@@ -172,7 +172,11 @@ export default Plugin.define({
       { id: "omni-quota.open", title: "OmniRoute: quotas", palette: true, slash: { name: "omni-quota" }, run: () => {
         if (!ctx.ui.panel.open("omni-quota")) ctx.ui.toast.show({ message: "Open a session to view quotas", variant: "info" })
       } },
-      { id: "omni-quota.refresh", title: "OmniRoute: refresh quotas", palette: true, slash: { name: "omni-quota-refresh" }, run: () => { void poller.refresh() } },
+      { id: "omni-quota.refresh", title: "OmniRoute: refresh quotas", palette: true, slash: { name: "omni-quota-refresh" }, run: () => { void poller.refreshManual().then(result => {
+        if (result === "stopped") return
+        const messages = { success: "Provider limits refresh completed; cache read requested", partial: "Some provider limits failed to refresh", auth: "Refresh requires a management token with manage or admin scope", error: "Provider limits refresh failed", timeout: "Provider limits refresh timed out; server may still be working", busy: "Provider limits refresh already in progress" }
+        ctx.ui.toast.show({ message: messages[result], variant: result === "success" ? "success" : "warning" })
+      }) } },
     ] }))
     return () => { poller.stop(); removeSidebar(); removePanel() }
   },

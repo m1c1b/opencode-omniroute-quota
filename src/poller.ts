@@ -1,4 +1,4 @@
-import { fetchQuotas, type Account } from "./quota"
+import { fetchQuotas, refreshProviderLimits, type Account } from "./quota"
 
 export interface State {
   accounts: Account[] | null
@@ -10,10 +10,11 @@ export function createPoller(config: { baseUrl: string; apiKey: string; interval
   let state: State = { accounts: null, status: "loading", updatedAt: null }
   let active: AbortController | undefined
   let stopped = false
+  let manual = false
   const update = (next: State) => { state = next; publish(next) }
   const failed = () => update({ ...state, status: state.accounts ? "stale" : "unavailable" })
 
-  async function refresh(): Promise<void> {
+  async function readCache(): Promise<void> {
     if (stopped || active) return
     if (!config.apiKey || !config.baseUrl) {
       failed()
@@ -33,10 +34,48 @@ export function createPoller(config: { baseUrl: string; apiKey: string; interval
     }
   }
 
+  async function refresh(): Promise<void> {
+    if (!manual) await readCache()
+  }
+
+  async function post(): Promise<"success" | "partial" | "auth" | "error" | "timeout"> {
+    const controller = new AbortController()
+    active = controller
+    const timeout = setTimeout(() => controller.abort(), 300_000)
+    try {
+      return await refreshProviderLimits(config.baseUrl, config.apiKey, controller.signal)
+    } catch {
+      return controller.signal.aborted ? "timeout" : "error"
+    } finally {
+      clearTimeout(timeout)
+      active = undefined
+    }
+  }
+
+  async function runManual(): Promise<"success" | "partial" | "auth" | "error" | "timeout" | "stopped"> {
+    if (active) {
+      active.abort()
+      while (active && !stopped) await new Promise(resolve => setTimeout(resolve, 0))
+    }
+    if (stopped) return "stopped"
+    const result = await post()
+    if (stopped) return "stopped"
+    if (result === "success" || result === "partial") await readCache()
+    return stopped ? "stopped" : result
+  }
+
   const interval = setInterval(() => { void refresh() }, config.interval)
   void refresh()
   return {
     refresh,
+    async refreshManual(): Promise<"success" | "partial" | "auth" | "error" | "timeout" | "busy" | "stopped"> {
+      if (stopped) return "stopped"
+      if (manual) return "busy"
+      manual = true
+      try {
+        return await runManual()
+      } finally { manual = false }
+    },
     stop() { stopped = true; clearInterval(interval); active?.abort() },
   }
 }

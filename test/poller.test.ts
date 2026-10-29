@@ -1,6 +1,73 @@
 import { expect, test } from "bun:test"
 import { createPoller, type State } from "../src/poller"
 
+test("manual refresh posts before reading cache and prevents duplicate posts", async () => {
+  const requests: string[] = []
+  let release: (() => void) | undefined
+  const server = Bun.serve({ port: 0, async fetch(request) {
+    requests.push(request.method)
+    expect(request.headers.get("authorization")).toBe("Bearer test")
+    if (request.method === "POST") {
+      expect(await request.text()).toBe("")
+      await new Promise<void>(resolve => { release = resolve })
+      return Response.json({ failed: 0 })
+    }
+    return Response.json({ allowed: true, providers: [] })
+  } })
+  const poller = createPoller({ baseUrl: server.url.href, apiKey: "test", interval: 20, timeout: 1000 }, () => {})
+  try {
+    await Bun.sleep(50)
+    expect(requests.every(method => method === "GET")).toBe(true)
+    requests.length = 0
+    const result = poller.refreshManual()
+    await Bun.sleep(50)
+    expect(await poller.refreshManual()).toBe("busy")
+    expect(requests).toEqual(["POST"])
+    release?.()
+    expect(await result).toBe("success")
+    expect(requests.slice(0, 2)).toEqual(["POST", "GET"])
+  } finally { poller.stop(); server.stop(true) }
+})
+
+test("manual refresh reports safe authorization and partial failures", async () => {
+  let status = 401
+  const server = Bun.serve({ port: 0, fetch(request) {
+    if (request.method === "POST") return status === 200 ? Response.json({ failed: 1, errors: { secret: "private" } }) : new Response("secret", { status })
+    return Response.json({ allowed: true, providers: [] })
+  } })
+  const poller = createPoller({ baseUrl: server.url.href, apiKey: "test", interval: 60_000, timeout: 1000 }, () => {})
+  try {
+    for (status of [401, 403]) expect(await poller.refreshManual()).toBe("auth")
+    status = 200
+    expect(await poller.refreshManual()).toBe("partial")
+  } finally { poller.stop(); server.stop(true) }
+})
+
+test("stopping during manual refresh aborts without further publications", async () => {
+  let started = false
+  let release: (() => void) | undefined
+  const server = Bun.serve({ port: 0, async fetch(request) {
+    if (request.method === "POST") {
+      started = true
+      await new Promise<void>(resolve => { release = resolve })
+      return Response.json({ failed: 0 })
+    }
+    return Response.json({ allowed: true, providers: [] })
+  } })
+  const states: State[] = []
+  const poller = createPoller({ baseUrl: server.url.href, apiKey: "test", interval: 60_000, timeout: 1000 }, state => states.push(state))
+  try {
+    const result = poller.refreshManual()
+    while (!started) await Bun.sleep(5)
+    poller.stop()
+    const count = states.length
+    release?.()
+    expect(await result).toBe("stopped")
+    await Bun.sleep(20)
+    expect(states).toHaveLength(count)
+  } finally { poller.stop(); server.stop(true) }
+})
+
 test("prevents overlap, preserves stale data and stops", async () => {
   let requests = 0
   let fail = false
