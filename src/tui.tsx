@@ -35,11 +35,17 @@ export default Plugin.define({
     const percentsOnly = ctx.options.style === "percents-only-style"
     const [state, setState] = createSignal(initial)
     const [expanded, setExpanded] = createSignal(true)
-    const summary = () => {
-      const values = averageWindows(state().accounts ?? [])
-      return (["5h", "7d"] as const).flatMap(window => values[window] === null ? [] : [`${window} ${Math.round(values[window])}%`]).join(" · ")
-    }
     const [sidebarWidth, setSidebarWidth] = createSignal(32)
+    const summary = () => {
+      const group = groupAccounts(state().accounts ?? [])[0]
+      if (!group) return ""
+      const values = averageWindows(group.accounts)
+      const windows = (["5h", "7d"] as const).flatMap(window => values[window] === null ? [] : [`${window} ${Math.round(values[window])}%`]).join(" · ")
+      if (!windows) return ""
+      const named = `${group.provider.toUpperCase()} · ${windows}`
+      const status = state().status !== "ready" ? ` · ${state().status}` : ""
+      return `▶ OmniRoute  ${named}${status}`.length <= sidebarWidth() ? named : windows
+    }
     const contentWidth = () => Math.max(1, sidebarWidth() - 2)
     const compactBar = (remaining: number | null, unlimited = false) => {
       if (unlimited) return "∞"

@@ -299,8 +299,9 @@ test("style options render real sidebar and details at both widths", async () =>
             await view.mockMouse.click(2, 1)
             await view.renderOnce()
             const collapsed = view.captureCharFrame()
-            expect(collapsed).toContain("▶ OmniRoute  5h 0% · 7d 61%")
-            expect(collapsed).not.toContain("CODEX")
+            expect(collapsed).toContain(width === 32 ? "▶ OmniRoute  5h 0% · 7d 80%" : "▶ OmniRoute  CODEX · 5h 0% · 7d 80%")
+            const walk = (node: Renderable): Renderable[] => [node, ...node.getChildren().flatMap(walk)]
+            for (const node of walk(view.renderer.root)) expect(node.x + node.width).toBeLessThanOrEqual(width)
             expect(collapsed).not.toContain("/omni-quota")
             await view.mockMouse.click(2, 1)
             await view.renderOnce()
@@ -319,6 +320,46 @@ test("style options render real sidebar and details at both widths", async () =>
     }
   } finally {
     server.stop(true)
+    if (previousKey === undefined) delete process.env.OMNIROUTE_API_KEY
+    else process.env.OMNIROUTE_API_KEY = previousKey
+    await file.delete()
+  }
+})
+
+test("collapsed summary uses the first displayed provider without fallback", async () => {
+  const result = await Bun.build({ entrypoints: ["src/tui.tsx"], target: "bun", external: ["@opencode/plugin/tui", "@opentui/solid", "solid-js"], plugins: [createSolidTransformPlugin()] })
+  const file = Bun.file(`${import.meta.dir}/../dist/render-first-provider-test.js`)
+  await Bun.write(file, result.outputs[0])
+  const plugin: Plugin.Definition = (await import(new URL("../dist/render-first-provider-test.js", import.meta.url).href)).default
+  const previousKey = process.env.OMNIROUTE_API_KEY
+  process.env.OMNIROUTE_API_KEY = "test"
+  try {
+    for (const firstQuotas of [{ session: { windowSeconds: 18000, remainingPercentage: 25 } }, { other: { remainingPercentage: 25 }, weekly: { windowSeconds: 604800, unlimited: true }, session: { windowSeconds: 18000 } }]) {
+      const providers = [
+        { connectionId: "z", provider: "second", quotas: { session: { windowSeconds: 18000, remainingPercentage: 90 }, weekly: { windowSeconds: 604800, remainingPercentage: 80 } } },
+        { connectionId: "a", provider: "first", quotas: firstQuotas },
+      ]
+      const server = Bun.serve({ port: 0, fetch: request => new URL(request.url).pathname === "/api/providers" ? Response.json({ connections: [] }) : Response.json({ allowed: true, providers }) })
+      let sidebar: (input: { name: string }) => unknown = () => null
+      const context = { options: { baseUrl: server.url.href }, theme: { background: { base: "#101010" }, text: { base: "#ffffff", muted: "#777777" } }, ui: { slot: (slot: { append?: string, render: typeof sidebar }) => { if (slot.append === "sidebar.content") sidebar = slot.render; return () => {} } }, keymap: { layer: () => {} } } as unknown as Parameters<typeof plugin.setup>[0]
+      const stop = await plugin.setup(context)
+      try {
+        await Bun.sleep(50)
+        const view = await testRender(() => sidebar({ name: "" }) as never, { width: 70, height: 20 })
+        try {
+          await view.renderOnce()
+          await view.mockMouse.click(2, 1)
+          await view.renderOnce()
+          const frame = view.captureCharFrame()
+          expect(frame).toContain("▶ OmniRoute")
+          if ("other" in firstQuotas) expect(frame).not.toContain("5h")
+          else expect(frame).toContain("FIRST · 5h 25%")
+          expect(frame).not.toContain("90%")
+          expect(frame).not.toContain("80%")
+        } finally { await view.dispose() }
+      } finally { if (typeof stop === "function") stop(); server.stop(true) }
+    }
+  } finally {
     if (previousKey === undefined) delete process.env.OMNIROUTE_API_KEY
     else process.env.OMNIROUTE_API_KEY = previousKey
     await file.delete()
