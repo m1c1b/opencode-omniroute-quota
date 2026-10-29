@@ -102,7 +102,7 @@ export default Plugin.define({
                 <text wrapMode="none">{truncate(summarizeQuotas(account.quotas), contentWidth())}</text>
                 <text wrapMode="none">{summaryBar(account)}</text>
               </>}>
-                <For each={(["5h", "7d"] as const)}>{label => <text wrapMode="none">{quotaRow(label, account.quotas.find(item => windowType(item) === label), 2)}</text>}</For>
+                <For each={(["5h", "7d"] as const)}>{label => <Show when={label !== "5h" || account.quotas.some(item => windowType(item) === label)}><text wrapMode="none">{quotaRow(label, account.quotas.find(item => windowType(item) === label), 2)}</text></Show>}</For>
               </Show>}>
                 <For each={agyGroups(account)}>{quota => <text wrapMode="none">{quotaRow(agyLabel(quota).replace(" · ", " "), quota, Math.min(20, Math.max(10, contentWidth() - 12)))}</text>}</For>
               </Show>

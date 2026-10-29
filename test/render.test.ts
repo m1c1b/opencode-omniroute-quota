@@ -123,6 +123,7 @@ test("sidebar left-aligns numbered accounts under full-width provider rules", as
     { connectionId: "a", provider: "codex", quotas: { session: { windowSeconds: 604800, remainingPercentage: 80 } } },
     { connectionId: "longusername", provider: "codex", quotas: { session: { displayName: "session (5h)", remainingPercentage: 60 }, weekly: { displayName: "weekly (7d)", remainingPercentage: 80 } } },
     { connectionId: "c", provider: "codex", quotas: { session: { windowSeconds: 18000 }, weekly: { unlimited: true } } },
+    { connectionId: "zero", provider: "codex", quotas: { session: { windowSeconds: 18000, remainingPercentage: 0 } } },
     { connectionId: "d", provider: "agy", quotas: { model: { remainingPercentage: 40 }, gemini_weekly: { quotaGroupId: "gemini", quotaAggregate: true, window: "weekly", remainingPercentage: 25 }, gemini_session: { quotaGroupId: "gemini", quotaAggregate: true, window: "session", unlimited: true }, claude_gpt_weekly: { quotaGroupId: "claude_gpt", quotaAggregate: true, window: "weekly" } } },
   ]
   const server = Bun.serve({ port: 0, fetch: request => new URL(request.url).pathname === "/api/providers" ? Response.json({ connections: providers.map(p => ({ id: p.connectionId, email: `${p.connectionId}@example.test` })) }) : Response.json({ allowed: true, providers }) })
@@ -158,6 +159,7 @@ test("sidebar left-aligns numbered accounts under full-width provider rules", as
         expect(frame).toMatch(/7d [█░▒▓]+\s+80%/)
         expect(frame).toMatch(/5h [░]+\s+\?/)
         expect(frame).toMatch(/7d [░]+\s+∞/)
+        expect(frame).toMatch(/1  a[^\n]*\n\s*7d [█░▒▓]+\s+80%[^\n]*\n─+/)
         expect(lines.find(line => line.includes("CODEX"))!.startsWith("CODEX")).toBe(true)
         const bars = lines.filter(line => /[57][hd] [█░▒▓]+/.test(line))
         expect(new Set(bars.map(line => line.match(/[█░▒▓]+/)![0].length)).size).toBe(1)
@@ -180,6 +182,8 @@ test("sidebar left-aligns numbered accounts under full-width provider rules", as
         expect(frame.match(/CODEX/g)?.length).toBe(1)
         expect(allFrames).toContain("AGY")
         expect(allFrames).toMatch(/3  longusername[^\n]*\n[^\n]*5h [^\n]*60%[^\n]*\n[^\n]*7d [^\n]*80%/)
+        expect(allFrames).toMatch(/5h [░]+\s+0%/)
+        expect(allFrames).toMatch(/7d [░]+\s+—/)
         const walk = (node: Renderable): Renderable[] => [node, ...node.getChildren().flatMap(walk)]
         for (const node of walk(view.renderer.root)) {
           expect(node.x + node.width).toBeLessThanOrEqual(width)

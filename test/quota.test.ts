@@ -11,6 +11,17 @@ test("preserves raw quota keys and window duration", () => {
   expect(account.quotas[0]).toMatchObject({ key: "session", name: "Weekly", windowSeconds: 604800 })
 })
 
+test("preserves weekly-only quotas and distinguishes unknown and exhausted 5h quotas", () => {
+  const accounts = parseResponse({ allowed: true, providers: [
+    { connectionId: "a", provider: "codex", quotas: { weekly: { windowSeconds: 604800, remainingPercentage: 80 } } },
+    { connectionId: "b", provider: "codex", quotas: { session: { windowSeconds: 18000, remainingPercentage: 0 } } },
+    { connectionId: "c", provider: "codex", quotas: { session: { windowSeconds: 18000, remainingPercentage: null } } },
+  ] })
+  expect(accounts[0].quotas.map(q => [q.windowSeconds, q.remaining])).toEqual([[604800, 80]])
+  expect(accounts[1].quotas.map(q => [q.windowSeconds, q.remaining])).toEqual([[18000, 0]])
+  expect(accounts[2].quotas.map(q => [q.windowSeconds, q.remaining])).toEqual([[18000, null]])
+})
+
 test("preserves explicit AGY aggregate metadata and individual models", () => {
   const [account] = parseResponse({ allowed: true, providers: [{ connectionId: "a", provider: "agy", quotas: {
     gemini_weekly: { quotaGroupId: "gemini", quotaAggregate: true, window: "weekly", remainingPercentage: 25 },
