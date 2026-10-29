@@ -292,6 +292,7 @@ test("style options render real sidebar and details at both widths", async () =>
             const spans = view.captureSpans().lines.flatMap(line => line.spans)
             const color = (text: string) => spans.find(span => span.text.includes(text))!.fg.toString()
             expect(color("CODEX")).toBe(RGBA.fromHex("#ff8800").toString())
+            const providerSpan = spans.find(span => span.text.includes("CODEX"))!
             expect(frame).toContain("#1")
             if (style === "percents-only-style") {
               expect(color("ACCOUNT")).toBe(RGBA.fromHex("#777777").toString())
@@ -331,11 +332,11 @@ test("style options render real sidebar and details at both widths", async () =>
             expect(collapsed.split("\n").find(line => line.includes("⚙️"))!.trim()).toBe("▶ ⚙️ | CODEX | 0% | 80% |")
             expect(collapsed).not.toMatch(/\d\d:\d\d:\d\d|Updated/)
             expect(collapsed).not.toContain("[")
-            const headerSpans = view.captureSpans().lines.flatMap(line => line.spans)
-            const headerColor = (text: string) => headerSpans.find(span => span.text.includes(text))!.fg.toString()
-            expect(headerColor("|")).toBe(RGBA.fromHex("#777777").toString())
-            expect(headerColor("0%")).toBe(RGBA.fromHex("#ffffff").toString())
-            expect(headerColor("CODEX")).toBe(RGBA.fromHex("#ffffff").toString())
+            const headerLine = view.captureSpans().lines.find(line => line.spans.some(span => span.text.includes("CODEX")))!
+            for (const span of headerLine.spans.filter(span => span.text.trim())) {
+              expect(span.fg.toString()).toBe(providerSpan.fg.toString())
+              expect(span.attributes).toBe(providerSpan.attributes)
+            }
             const walk = (node: Renderable): Renderable[] => [node, ...node.getChildren().flatMap(walk)]
             for (const node of walk(view.renderer.root)) expect(node.x + node.width).toBeLessThanOrEqual(width)
             expect(collapsed).not.toContain("/omni-quota")
