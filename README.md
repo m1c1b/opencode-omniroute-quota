@@ -137,6 +137,24 @@ Account labels may be visible in the TUI. Email labels are shortened to the part
 
 ## Development
 
+### CI and releases
+
+GitHub Actions checks pushes to `main` and pull requests: typecheck, lint, tests, and package build. The `npm-package` artifact contains the verified archive, including its license and both TUI entry points.
+
+Publishing a non-prerelease GitHub Release runs the same checks and publishes that archive to npm with provenance. The release tag must be `v` followed by the version in `package.json`, for example `v0.1.2`. Creating a Git tag alone does not publish the package.
+
+Publishing uses npm trusted publishing (OIDC), without an `NPM_TOKEN` secret. Once the package exists on npm, configure its trusted publisher in the package settings:
+
+- Provider: GitHub Actions
+- Organization or user: `m1c1b`
+- Repository: `opencode-omniroute-quota`
+- Workflow filename: `publish.yml`
+- Environment: leave empty
+
+The package must exist before npm allows this configuration. After a complete unpublish, wait for npm's 24-hour restriction, publish a new version manually once, then configure the trusted publisher. An unpublished version cannot be reused. Do not publish a GitHub Release for an already manually published version after enabling the workflow; use a new version for the next automated release.
+
+For each subsequent release, update `package.json`, merge the change to `main`, wait for CI, and publish a GitHub Release with the matching tag. Prereleases are intentionally excluded from automatic npm publication.
+
 ```sh
 bun run test
 bun run typecheck
