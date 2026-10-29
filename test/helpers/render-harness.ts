@@ -16,6 +16,7 @@ export function renderContext(baseUrl: string, style?: string) {
 
 export async function buildRenderPlugin(name: string) {
   const result = await Bun.build({ entrypoints: ["src/tui.tsx"], target: "bun", external: ["@opencode/plugin/tui", "@opentui/solid", "solid-js"], plugins: [createSolidTransformPlugin()] })
+  if (!result.success) throw new AggregateError(result.logs, "Failed to build render test plugin")
   const file = Bun.file(`${import.meta.dir}/../../dist/${name}.js`)
   await Bun.write(file, result.outputs[0])
   return { file, url: new URL(`../../dist/${name}.js`, import.meta.url).href }

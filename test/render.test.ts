@@ -1,10 +1,30 @@
-import { expect, test } from "bun:test"
+import { expect, spyOn, test } from "bun:test"
 import { buildRenderPlugin, renderContext, setTestApiKey } from "./helpers/render-harness"
 import { insert, testRender, useRenderer } from "@opentui/solid"
 import { BoxRenderable, RGBA, ScrollBoxRenderable, type Renderable } from "@opentui/core"
 import type { Plugin } from "@opencode/plugin/tui"
 import { createRoot } from "solid-js"
 import { maskAccountName } from "../src/tui"
+
+async function waitFor(predicate: () => boolean | Promise<boolean>, description: string, timeout = 5000) {
+  const deadline = Date.now() + timeout
+  while (!await predicate()) {
+    if (Date.now() >= deadline) throw new Error(`Timed out waiting for ${description}`)
+    await Bun.sleep(5)
+  }
+}
+
+test("render build failure reports build logs", async () => {
+  const log = new Error("build failed")
+  const build = spyOn(Bun, "build").mockResolvedValueOnce({ success: false, logs: [log], outputs: [] } as never)
+  try {
+    await expect(buildRenderPlugin("render-failed-test")).rejects.toMatchObject({
+      name: "AggregateError", message: "Failed to build render test plugin", errors: [log],
+    })
+  } finally {
+    build.mockRestore()
+  }
+})
 
 test("account masks contain ten code points without overlapping short names", () => {
   for (const [name, masked] of [["11company08", "11co****08"], ["pupa67", "pupa****67"], ["abcde", "abcd*****e"], ["a", "a*********"], ["", "**********"], ["😀😁😂🤣😃😄", "😀😁😂🤣****😃😄"]]) {
@@ -55,7 +75,7 @@ test("refresh command reports authorization failures without server details", as
   const stop = await createRoot(end => { dispose = end; return plugin.setup(context) })
   try {
     layers.flatMap(layer => layer().commands).find(command => command.id === "omni-quota.refresh")!.run()
-    for (let i = 0; i < 100 && !messages.length; i++) await Bun.sleep(5)
+    await waitFor(() => messages.length > 0, "refresh authorization notification")
     expect(messages).toEqual(["Refresh requires a management token with manage or admin scope"])
   } finally {
     if (typeof stop === "function") stop()
@@ -88,10 +108,10 @@ test("panel renders and scrolls within its allocated dimensions", async () => {
   const { context, slots } = renderContext(server.url.href)
   const stop = await plugin.setup(context)
   try {
-    await Bun.sleep(50)
     for (const width of [32, 70]) {
       const view = await testRender(() => slots["session.panel"]({ name: "omni-quota" }) as never, { width, height: 18 })
       try {
+        await waitFor(async () => { await view.renderOnce(); return view.captureCharFrame().includes("provider0") }, "details quota data")
         await view.renderOnce()
         const walk = (node: Renderable): Renderable[] => [node, ...node.getChildren().flatMap(walk)]
         const nodes = walk(view.renderer.root)
@@ -185,7 +205,6 @@ test("sidebar left-aligns numbered accounts under full-width provider rules", as
   const { context, slots } = renderContext(server.url.href)
   const stop = await plugin.setup(context)
   try {
-    await Bun.sleep(50)
     for (const width of [32, 70]) {
       let container!: BoxRenderable
       let scroll!: ScrollBoxRenderable
@@ -198,8 +217,8 @@ test("sidebar left-aligns numbered accounts under full-width provider rules", as
         return container as never
       }, { width, height: 18 })
       try {
+        await waitFor(async () => { await view.renderOnce(); return view.captureCharFrame().includes("long****me") }, "long-name quota data")
         await view.renderOnce()
-        await Bun.sleep(20)
         await view.renderOnce()
         const frame = view.captureCharFrame()
         const lines = frame.split("\n")
@@ -282,10 +301,10 @@ test("style options render real sidebar and details at both widths", async () =>
       const { context, slots } = renderContext(server.url.href, style)
       const stop = await plugin.setup(context)
       try {
-        await Bun.sleep(50)
         for (const width of [32, 70]) {
           const view = await testRender(() => slots["sidebar.content"]({ name: "" }) as never, { width, height: 70 })
           try {
+            await waitFor(async () => { await view.renderOnce(); return view.captureCharFrame().includes("long****le") }, "sidebar quota data")
             await view.renderOnce()
             await view.renderOnce()
             const frame = view.captureCharFrame()
@@ -387,10 +406,10 @@ test("collapsed summary uses only the first displayed provider", async () => {
       const { context, slots } = renderContext(server.url.href, style)
       const stop = await plugin.setup(context)
       try {
-        await Bun.sleep(50)
         for (const width of [32, 70]) {
         const view = await testRender(() => slots["sidebar.content"]({ name: "" }) as never, { width, height: 20 })
         try {
+          await waitFor(async () => { await view.renderOnce(); return view.captureCharFrame().includes("SECOND") }, "first provider quota data")
           await view.renderOnce()
           await view.mockMouse.click(2, 1)
           await view.renderOnce()
