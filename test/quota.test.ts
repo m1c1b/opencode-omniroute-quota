@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { averageWindows, fetchQuotas, groupAccounts, parseLabels, parseResponse, summarizeQuotas, type Quota } from "../src/quota"
+import { remainingByWindow, fetchQuotas, groupAccounts, parseLabels, parseResponse, quotaSummary, summarizeQuotas, type Quota } from "../src/quota"
 
 test("window summary sums actual usage and excludes ineligible quotas", () => {
   const accounts = parseResponse({ allowed: true, providers: [
@@ -7,17 +7,17 @@ test("window summary sums actual usage and excludes ineligible quotas", () => {
     { connectionId: "b", provider: "codex", quotas: { weekly: { windowSeconds: 604800, used: 0, total: 1000, remainingPercentage: 0 }, session: { windowSeconds: 18000, used: 100, total: 100 } } },
     { connectionId: "c", provider: "codex", quotas: { weekly: { windowSeconds: 604800, unlimited: true, used: 100, total: 100 }, session: { windowSeconds: 18000, remaining: 100, total: 100 }, zero: { windowSeconds: 18000, used: 0, total: 0 }, invalid: { windowSeconds: 18000, used: Infinity, total: 100 } } },
   ] })
-  expect(averageWindows(accounts)).toEqual({ "5h": 0, "7d": 1000 / 1100 * 100 })
-  expect(averageWindows([])).toEqual({ "5h": null, "7d": null })
+  expect(remainingByWindow(accounts)).toEqual({ "5h": 0, "7d": 1000 / 1100 * 100 })
+  expect(remainingByWindow([])).toEqual({ "5h": null, "7d": null })
   accounts[1].quotas[0].used = NaN
-  expect(averageWindows(accounts)["7d"]).toBe(0)
+  expect(remainingByWindow(accounts)["7d"]).toBe(0)
   accounts[0].quotas[0].used = 0
-  expect(averageWindows(accounts)["7d"]).toBe(100)
+  expect(remainingByWindow(accounts)["7d"]).toBe(100)
   accounts[0].quotas[0].used = -1
-  expect(averageWindows(accounts)["7d"]).toBe(100)
+  expect(remainingByWindow(accounts)["7d"]).toBe(100)
   accounts[0].quotas[0].used = 101
-  expect(averageWindows(accounts)["7d"]).toBe(0)
-  expect(averageWindows([accounts[2]])).toEqual({ "5h": null, "7d": null })
+  expect(remainingByWindow(accounts)["7d"]).toBe(0)
+  expect(remainingByWindow([accounts[2]])).toEqual({ "5h": null, "7d": null })
 })
 
 test("metadata keeps only valid email local parts", () => {
@@ -91,6 +91,9 @@ describe("OmniRoute response", () => {
     expect(summarizeQuotas([q(null, true)])).toBe("1 quota · min. ∞")
     expect(summarizeQuotas([q(null), q(null, true)])).toBe("2 quotas · min. ?")
     expect(summarizeQuotas([q(50), q(10), q(null), q(null, true)])).toBe("4 quotas · min. 10% + ?")
+    expect(quotaSummary([])).toEqual({ count: 0, remaining: null, unlimited: false, hasUnknown: false })
+    expect(quotaSummary([q(null, true)])).toEqual({ count: 1, remaining: null, unlimited: true, hasUnknown: false })
+    expect(quotaSummary([q(50), q(10), q(null), q(null, true)])).toEqual({ count: 4, remaining: 10, unlimited: false, hasUnknown: true })
   })
 
   test("sends bearer to expected endpoint and rejects redirects", async () => {

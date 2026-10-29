@@ -4,7 +4,9 @@ import { For, Show, createSignal, onMount } from "solid-js"
 import type { BoxRenderable } from "@opentui/core"
 import { createPoller, type State } from "./poller"
 import { resolveApiKey } from "./api-key"
-import { averageWindows, groupAccounts, summarizeQuotas, windowType, type Account, type Quota } from "./quota"
+import { remainingByWindow, groupAccounts, quotaSummary, summarizeQuotas, windowType, type Account, type Quota } from "./quota"
+import { shaded } from "./shaded"
+export { shaded } from "./shaded"
 
 const initial: State = { accounts: null, status: "loading", updatedAt: null }
 const duration = (value: unknown, fallback: number) =>
@@ -20,14 +22,18 @@ export const maskAccountName = (name: string) => {
 
 const hasWindows = (account: Account) => account.quotas.some(quota => windowType(quota) !== null)
 const truncate = (value: string, width: number) => value.length > width ? `${value.slice(0, width - 1)}…` : value
-export const shaded = (value: number, width: number) => {
-  const amount = Math.max(0, Math.min(100, value)) * width / 100
-  if (amount === width) return "█".repeat(width)
-  if (amount === 0) return "░".repeat(width)
-  const full = Math.floor(amount)
-  const partial = "░▒▓█"[Math.max(1, Math.floor((amount - full) * 3))]
-  return "█".repeat(full) + partial + "░".repeat(width - full - 1)
+const percent = (quota: Quota | undefined) => !quota ? "—" : quota.unlimited ? "∞" : quota.remaining === null ? "?" : `${Math.round(quota.remaining * 100) / 100}%`
+const nameWidth = (sidebarWidth: number, show5h: boolean) => Math.max(7, sidebarWidth - (show5h ? 17 : 10))
+const groupHas5h = (accounts: Account[]) => accounts.some(account => account.quotas.some(q => windowType(q) === "5h"))
+const numberWidth = (accounts: Account[]) => Math.max(3, String(accounts.length).length + 2)
+const tableRow = (account: Account, index: number, show5h: boolean, agy: boolean, numbers: number, sidebarWidth: number) => {
+  const quota5h = account.quotas.find(q => windowType(q) === "5h")
+  const width = nameWidth(sidebarWidth, show5h) - (numbers - 3)
+  return `${`#${index + 1}`.padEnd(numbers)}${truncate(maskAccountName(accountName(account)), width).padEnd(width)}${show5h ? ` ${(quota5h || agy ? percent(quota5h) : "").padStart(6)}` : ""} ${percent(account.quotas.find(q => windowType(q) === "7d")).padStart(6)}`
 }
+const tableHeader = (accounts: Account[], agy: boolean, sidebarWidth: number) => agy
+  ? `${"#".padEnd(numberWidth(accounts))}ACCOUNT / QUOTA`
+  : `${"#".padEnd(numberWidth(accounts))}${"ACCOUNT".padEnd(nameWidth(sidebarWidth, groupHas5h(accounts)) - (numberWidth(accounts) - 3))}${groupHas5h(accounts) ? ` ${"5h".padStart(6)}` : ""} ${"7d".padStart(6)}`
 
 function reset(value: string | null): string {
   if (!value) return "—"
@@ -43,7 +49,7 @@ export default Plugin.define({
     const [expanded, setExpanded] = createSignal(true)
     const [sidebarWidth, setSidebarWidth] = createSignal(32)
     const summaries = () => groupAccounts(state().accounts ?? []).slice(0, 1).map(group => {
-      const values = averageWindows(group.accounts)
+      const values = remainingByWindow(group.accounts)
       return { provider: group.provider.toUpperCase(), windows: (["5h", "7d"] as const).map(window => values[window] == null ? "—" : `${Math.round(values[window])}%`) }
     })
     const updated = () => {
@@ -62,25 +68,15 @@ export default Plugin.define({
       ? account.quotas.filter(quota => quota.quotaAggregate && quota.quotaGroupId && quota.window)
       : []
     const agyLabel = (quota: Quota) => `${quota.quotaGroupId === "gemini" ? "Gemini" : quota.quotaGroupId === "claude_gpt" ? "Claude/GPT" : quota.quotaGroupId} · ${quota.window === "weekly" ? "weekly" : quota.window === "session" ? "session" : quota.window}`
-    const percent = (quota: Quota | undefined) => !quota ? "—" : quota.unlimited ? "∞" : quota.remaining === null ? "?" : `${Math.round(quota.remaining * 100) / 100}%`
     const quotaRow = (label: string, quota: Quota | undefined, labelWidth: number) => {
       const value = percent(quota)
       const width = Math.max(1, contentWidth() - labelWidth - 8)
       const bar = quota && !quota.unlimited && quota.remaining !== null ? shaded(quota.remaining, width) : "░".repeat(width)
       return `${truncate(label, labelWidth).padEnd(labelWidth)} ${bar} ${value.padStart(6)}`
     }
-    const nameWidth = (show5h: boolean) => Math.max(7, sidebarWidth() - (show5h ? 17 : 10))
-    const groupHas5h = (accounts: Account[]) => accounts.some(account => account.quotas.some(q => windowType(q) === "5h"))
-    const numberWidth = (accounts: Account[]) => Math.max(3, String(accounts.length).length + 2)
-    const tableRow = (account: Account, index: number, show5h: boolean, agy: boolean, numbers: number) => {
-      const quota5h = account.quotas.find(q => windowType(q) === "5h")
-      const width = nameWidth(show5h) - (numbers - 3)
-      return `${`#${index + 1}`.padEnd(numbers)}${truncate(maskAccountName(accountName(account)), width).padEnd(width)}${show5h ? ` ${(quota5h || agy ? percent(quota5h) : "").padStart(6)}` : ""} ${percent(account.quotas.find(q => windowType(q) === "7d")).padStart(6)}`
-    }
     const summaryBar = (account: Account) => {
-      const limited = account.quotas.filter(quota => !quota.unlimited)
-      const known = limited.flatMap(quota => quota.remaining === null ? [] : [quota.remaining])
-      return compactBar(known.length ? Math.min(...known) : null, account.quotas.length > 0 && !limited.length)
+      const summary = quotaSummary(account.quotas)
+      return compactBar(summary.remaining, summary.unlimited)
     }
     const bar = (remaining: number | null, unlimited = false) => {
       if (unlimited) return <text>∞</text>
@@ -108,7 +104,7 @@ export default Plugin.define({
         <For each={groupAccounts(state().accounts ?? [])}>{(group, groupIndex) => <box width="100%" flexDirection="column" flexShrink={0} paddingTop={groupIndex() ? 2 : 0}>
           <text height={1} flexShrink={0} fg={ctx.theme.text.action.primary.base}><strong>{group.provider.toUpperCase()}</strong></text>
           <Show when={percentsOnly}>
-            <text wrapMode="none" fg={ctx.theme.text.muted}>{group.provider === "agy" ? `${"#".padEnd(numberWidth(group.accounts))}ACCOUNT / QUOTA` : `${"#".padEnd(numberWidth(group.accounts))}${"ACCOUNT".padEnd(nameWidth(groupHas5h(group.accounts)) - (numberWidth(group.accounts) - 3))}${groupHas5h(group.accounts) ? ` ${"5h".padStart(6)}` : ""} ${"7d".padStart(6)}`}</text>
+            <text wrapMode="none" fg={ctx.theme.text.muted}>{tableHeader(group.accounts, group.provider === "agy", sidebarWidth())}</text>
           </Show>
           <Show when={percentsOnly} fallback={<>
           <For each={group.accounts}>{(account, accountIndex) => <box width="100%" flexShrink={0} flexDirection="column">
@@ -128,7 +124,7 @@ export default Plugin.define({
           </>}>
             <For each={group.accounts}>{(account, accountIndex) => <box width="100%" flexShrink={0} flexDirection="column">
               <Show when={accountIndex() > 0}><text fg={ctx.theme.text.muted}>{"─".repeat(sidebarWidth())}</text></Show>
-              <text wrapMode="none">{agyGroups(account).length ? truncate(`#${accountIndex() + 1}  ${maskAccountName(accountName(account))}`, sidebarWidth()) : tableRow(account, accountIndex(), group.provider === "agy" || groupHas5h(group.accounts), group.provider === "agy", numberWidth(group.accounts))}</text>
+              <text wrapMode="none">{agyGroups(account).length ? truncate(`#${accountIndex() + 1}  ${maskAccountName(accountName(account))}`, sidebarWidth()) : tableRow(account, accountIndex(), group.provider === "agy" || groupHas5h(group.accounts), group.provider === "agy", numberWidth(group.accounts), sidebarWidth())}</text>
               <Show when={agyGroups(account).length} fallback={<Show when={!hasWindows(account)}><text wrapMode="none">{truncate(`   ${summarizeQuotas(account.quotas)}`, sidebarWidth())}</text></Show>}>
                 <For each={agyGroups(account)}>{quota => <text wrapMode="none">{truncate(`   ${agyLabel(quota)}: ${percent(quota)}`, sidebarWidth())}</text>}</For>
               </Show>

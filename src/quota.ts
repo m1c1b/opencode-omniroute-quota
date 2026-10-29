@@ -36,7 +36,7 @@ function eligibleWindow(account: Account, quota: Quota, window: "5h" | "7d"): bo
   return quota.used !== null && quota.total !== null && Number.isFinite(quota.used) && Number.isFinite(quota.total) && quota.total > 0
 }
 
-export function averageWindows(accounts: Account[]): { "5h": number | null; "7d": number | null } {
+export function remainingByWindow(accounts: Account[]): { "5h": number | null; "7d": number | null } {
   const windowAverage = (window: "5h" | "7d") => {
     let used = 0
     let total = 0
@@ -50,13 +50,23 @@ export function averageWindows(accounts: Account[]): { "5h": number | null; "7d"
   return { "5h": windowAverage("5h"), "7d": windowAverage("7d") }
 }
 
-export function summarizeQuotas(quotas: Quota[]): string {
-  if (!quotas.length) return "0 quotas"
+export function quotaSummary(quotas: Quota[]) {
   const limited = quotas.filter(quota => !quota.unlimited)
   const known = limited.flatMap(quota => quota.remaining === null ? [] : [quota.remaining])
-  const worst = known.length ? `${Math.min(...known)}%` : limited.length ? "?" : "∞"
-  const unknown = known.length < limited.length && known.length > 0 ? " + ?" : ""
-  return `${quotas.length} ${quotas.length === 1 ? "quota" : "quotas"} · min. ${worst}${unknown}`
+  return {
+    count: quotas.length,
+    remaining: known.length ? Math.min(...known) : null,
+    unlimited: quotas.length > 0 && !limited.length,
+    hasUnknown: known.length < limited.length,
+  }
+}
+
+export function summarizeQuotas(quotas: Quota[]): string {
+  const summary = quotaSummary(quotas)
+  if (!summary.count) return "0 quotas"
+  const worst = summary.remaining !== null ? `${summary.remaining}%` : summary.unlimited ? "∞" : "?"
+  const unknown = summary.hasUnknown && summary.remaining !== null ? " + ?" : ""
+  return `${summary.count} ${summary.count === 1 ? "quota" : "quotas"} · min. ${worst}${unknown}`
 }
 
 const record = (value: unknown): Record<string, unknown> | null =>
@@ -138,6 +148,10 @@ export function groupAccounts(accounts: Account[]): { provider: string; accounts
   return [...groups].map(([provider, accounts]) => ({ provider, accounts }))
 }
 
+function rethrowCancellation(signal: AbortSignal, error: unknown): void {
+  if (signal.aborted && signal.reason?.name !== "TimeoutError") throw error
+}
+
 export async function fetchQuotas(baseUrl: string, apiKey: string, signal: AbortSignal): Promise<Account[]> {
   const base = new URL(baseUrl)
   if (!["http:", "https:"].includes(base.protocol) || base.username || base.password) throw new Error("invalid URL")
@@ -152,7 +166,9 @@ export async function fetchQuotas(baseUrl: string, apiKey: string, signal: Abort
       const labels = parseLabels(await metadata.json())
       for (const account of accounts) account.label = labels.get(account.id)
     }
-  } catch { /* Metadata is optional. */ }
+  } catch (error) {
+    rethrowCancellation(signal, error)
+  }
   return accounts
 }
 

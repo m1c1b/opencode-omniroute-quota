@@ -9,12 +9,14 @@ export interface State {
 export function createPoller(config: { baseUrl: string; apiKey: string; interval: number; timeout: number }, publish: (state: State) => void) {
   let state: State = { accounts: null, status: "loading", updatedAt: null }
   let active: AbortController | undefined
+  let activePromise: Promise<void> | undefined
+  const cancelled = new WeakSet<AbortController>()
   let stopped = false
   let manual = false
   const update = (next: State) => { state = next; publish(next) }
   const failed = () => update({ ...state, status: state.accounts ? "stale" : "unavailable" })
 
-  async function readCache(): Promise<void> {
+  async function readCacheRequest(): Promise<void> {
     if (stopped || active) return
     if (!config.apiKey || !config.baseUrl) {
       failed()
@@ -22,16 +24,24 @@ export function createPoller(config: { baseUrl: string; apiKey: string; interval
     }
     const controller = new AbortController()
     active = controller
-    const timeout = setTimeout(() => controller.abort(), config.timeout)
+    const timeout = setTimeout(() => controller.abort(new DOMException("Timed out", "TimeoutError")), config.timeout)
     try {
       const accounts = await fetchQuotas(config.baseUrl, config.apiKey, controller.signal)
-      if (!stopped && !controller.signal.aborted) update({ accounts, status: "ready", updatedAt: Date.now() })
+      if (!stopped && !cancelled.has(controller)) update({ accounts, status: "ready", updatedAt: Date.now() })
     } catch {
-      if (!stopped) failed()
+      if (!stopped && !cancelled.has(controller)) failed()
     } finally {
       clearTimeout(timeout)
       active = undefined
     }
+  }
+
+  function readCache(): Promise<void> {
+    if (stopped || active) return Promise.resolve()
+    const request = readCacheRequest()
+    activePromise = request
+    void request.finally(() => { if (activePromise === request) activePromise = undefined })
+    return request
   }
 
   async function refresh(): Promise<void> {
@@ -54,8 +64,9 @@ export function createPoller(config: { baseUrl: string; apiKey: string; interval
 
   async function runManual(): Promise<"success" | "partial" | "auth" | "error" | "timeout" | "stopped"> {
     if (active) {
+      cancelled.add(active)
       active.abort()
-      while (active && !stopped) await new Promise(resolve => setTimeout(resolve, 0))
+      await activePromise
     }
     if (stopped) return "stopped"
     const result = await post()

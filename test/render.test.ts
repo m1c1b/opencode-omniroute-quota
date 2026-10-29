@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { createSolidTransformPlugin } from "@opentui/solid/bun-plugin"
+import { buildRenderPlugin, renderContext, setTestApiKey } from "./helpers/render-harness"
 import { insert, testRender, useRenderer } from "@opentui/solid"
 import { BoxRenderable, RGBA, ScrollBoxRenderable, type Renderable } from "@opentui/core"
 import type { Plugin } from "@opencode/plugin/tui"
@@ -14,10 +14,8 @@ test("account masks contain ten code points without overlapping short names", ()
 })
 
 test("Escape closes only the quota panel and slots are removed", async () => {
-  const result = await Bun.build({ entrypoints: ["src/tui.tsx"], target: "bun", external: ["@opencode/plugin/tui", "@opentui/solid", "solid-js"], plugins: [createSolidTransformPlugin()] })
-  const file = Bun.file(`${import.meta.dir}/../dist/render-key-test.js`)
-  await Bun.write(file, result.outputs[0])
-  const plugin: Plugin.Definition = (await import(new URL("../dist/render-key-test.js", import.meta.url).href)).default
+  const { file, url } = await buildRenderPlugin("render-key-test")
+  const plugin: Plugin.Definition = (await import(url)).default
   type Layer = { enabled?: boolean; commands: { id?: string; bind?: string; run: () => void }[] }
   const layers: (() => Layer)[] = []
   let current: string | undefined
@@ -46,10 +44,8 @@ test("Escape closes only the quota panel and slots are removed", async () => {
 })
 
 test("refresh command reports authorization failures without server details", async () => {
-  const result = await Bun.build({ entrypoints: ["src/tui.tsx"], target: "bun", external: ["@opencode/plugin/tui", "@opentui/solid", "solid-js"], plugins: [createSolidTransformPlugin()] })
-  const file = Bun.file(`${import.meta.dir}/../dist/render-refresh-test.js`)
-  await Bun.write(file, result.outputs[0])
-  const plugin: Plugin.Definition = (await import(new URL("../dist/render-refresh-test.js", import.meta.url).href)).default
+  const { file, url } = await buildRenderPlugin("render-refresh-test")
+  const plugin: Plugin.Definition = (await import(url)).default
   const server = Bun.serve({ port: 0, fetch: request => request.method === "POST" ? new Response("sensitive server detail", { status: 403 }) : Response.json({ allowed: true, providers: [] }) })
   type Layer = { commands: { id?: string; run: () => void }[] }
   const layers: (() => Layer)[] = []
@@ -70,15 +66,13 @@ test("refresh command reports authorization failures without server details", as
 })
 
 test("Shaded matches ascii-bar partial fill levels", async () => {
-  const result = await Bun.build({ entrypoints: ["src/tui.tsx"], target: "bun", external: ["@opencode/plugin/tui", "@opentui/solid", "solid-js"], plugins: [createSolidTransformPlugin()] })
-  const file = Bun.file(`${import.meta.dir}/../dist/render-shaded-test.js`)
-  await Bun.write(file, result.outputs[0])
+  const { file, url } = await buildRenderPlugin("render-shaded-test")
   try {
-    const { shaded } = await import(new URL("../dist/render-shaded-test.js", import.meta.url).href)
+    const { shaded } = await import(url)
     expect(shaded(0, 10)).toBe("░░░░░░░░░░")
     expect(shaded(5, 10)).toBe("▒░░░░░░░░░")
     expect(shaded(8, 10)).toBe("▓░░░░░░░░░")
-    expect(shaded(50, 10)).toBe("█████▒░░░░")
+    expect(shaded(50, 10)).toBe("█████░░░░░")
     expect(shaded(96, 10)).toBe("█████████▒")
     expect(shaded(98, 10)).toBe("█████████▓")
     expect(shaded(100, 10)).toBe("██████████")
@@ -86,22 +80,17 @@ test("Shaded matches ascii-bar partial fill levels", async () => {
 })
 
 test("panel renders and scrolls within its allocated dimensions", async () => {
-  const result = await Bun.build({ entrypoints: ["src/tui.tsx"], target: "bun", external: ["@opencode/plugin/tui", "@opentui/solid", "solid-js"], plugins: [createSolidTransformPlugin()] })
-  const file = Bun.file(`${import.meta.dir}/../dist/render-test.js`)
-  await Bun.write(file, result.outputs[0])
-  const plugin: Plugin.Definition = (await import(new URL("../dist/render-test.js", import.meta.url).href)).default
+  const { file, url } = await buildRenderPlugin("render-test")
+  const plugin: Plugin.Definition = (await import(url)).default
   const providers = Array.from({ length: 3 }, (_, i) => ({ connectionId: `account${i}`, provider: `provider${i === 1 ? 0 : i}`, plan: "pro", quotas: Object.fromEntries(Array.from({ length: 12 }, (_, j) => [`window${j}`, j === 0 ? { used: 10, total: 10 } : j === 1 ? { used: 5, total: 10 } : j === 2 ? { used: 0, total: 10 } : j === 3 ? {} : j === 4 ? { unlimited: true } : { used: 2, total: 10 }])) }))
   const server = Bun.serve({ port: 0, fetch: request => new URL(request.url).pathname === "/api/providers" ? Response.json({ connections: providers.map((p, i) => ({ id: p.connectionId, email: `user${i}@example.test` })) }) : Response.json({ allowed: true, providers }) })
-  const previousKey = process.env.OMNIROUTE_API_KEY
-  process.env.OMNIROUTE_API_KEY = "test"
-  let panel: (input: { name: string }) => unknown = () => null
-  let sidebar: (input: { name: string }) => unknown = () => null
-  const context = { options: { baseUrl: server.url.href }, theme: { background: { base: "#101010" }, text: { base: "#ffffff", muted: "#777777", action: { primary: { base: "#ff8800" } } } }, ui: { slot: (claim: { append: string; render: typeof panel }) => { if (claim.append === "session.panel") panel = claim.render; if (claim.append === "sidebar.content") sidebar = claim.render; return () => {} } }, keymap: { layer: () => {} } } as unknown as Plugin.Context
+  const restoreKey = setTestApiKey()
+  const { context, slots } = renderContext(server.url.href)
   const stop = await plugin.setup(context)
   try {
     await Bun.sleep(50)
     for (const width of [32, 70]) {
-      const view = await testRender(() => panel({ name: "omni-quota" }) as never, { width, height: 18 })
+      const view = await testRender(() => slots["session.panel"]({ name: "omni-quota" }) as never, { width, height: 18 })
       try {
         await view.renderOnce()
         const walk = (node: Renderable): Renderable[] => [node, ...node.getChildren().flatMap(walk)]
@@ -133,7 +122,7 @@ test("panel renders and scrolls within its allocated dimensions", async () => {
         }
         scroll.scrollTo(4)
         await view.renderOnce()
-        expect(view.captureCharFrame()).toContain("█████▒░░░░ 50%")
+        expect(view.captureCharFrame()).toContain("█████░░░░░ 50%")
         expect(view.captureCharFrame()).toContain("██████████ 100%")
         scroll.scrollTo(12)
         await view.renderOnce()
@@ -157,7 +146,7 @@ test("panel renders and scrolls within its allocated dimensions", async () => {
         await view.renderOnce()
         expect(view.captureCharFrame()).toContain("provider2")
       } finally { await view.dispose() }
-      const side = await testRender(() => sidebar({ name: "" }) as never, { width, height: 18 })
+      const side = await testRender(() => slots["sidebar.content"]({ name: "" }) as never, { width, height: 18 })
       try {
         await side.renderOnce()
         await side.renderOnce()
@@ -176,16 +165,14 @@ test("panel renders and scrolls within its allocated dimensions", async () => {
   } finally {
     await stop?.()
     server.stop(true)
-    if (previousKey === undefined) delete process.env.OMNIROUTE_API_KEY
-    else process.env.OMNIROUTE_API_KEY = previousKey
+    restoreKey()
     await file.delete()
   }
 })
 
 test("sidebar left-aligns numbered accounts under full-width provider rules", async () => {
-  const result = await Bun.build({ entrypoints: ["src/tui.tsx"], target: "bun", external: ["@opencode/plugin/tui", "@opentui/solid", "solid-js"], plugins: [createSolidTransformPlugin()] })
-  await Bun.write(`${import.meta.dir}/../dist/render-windows-test.js`, result.outputs[0])
-  const plugin: Plugin.Definition = (await import(new URL("../dist/render-windows-test.js", import.meta.url).href)).default
+  const { file, url } = await buildRenderPlugin("render-windows-test")
+  const plugin: Plugin.Definition = (await import(url)).default
   const providers = [
     { connectionId: "a", provider: "codex", quotas: { session: { windowSeconds: 604800, used: 20, total: 100, remainingPercentage: 80 } } },
     { connectionId: "longusername", provider: "codex", quotas: { session: { displayName: "session (5h)", remainingPercentage: 60 }, weekly: { displayName: "weekly (7d)", remainingPercentage: 80 } } },
@@ -194,10 +181,8 @@ test("sidebar left-aligns numbered accounts under full-width provider rules", as
     { connectionId: "d", provider: "agy", quotas: { model: { remainingPercentage: 40 }, gemini_weekly: { quotaGroupId: "gemini", quotaAggregate: true, window: "weekly", remainingPercentage: 25 }, gemini_session: { quotaGroupId: "gemini", quotaAggregate: true, window: "session", unlimited: true }, claude_gpt_weekly: { quotaGroupId: "claude_gpt", quotaAggregate: true, window: "weekly" } } },
   ]
   const server = Bun.serve({ port: 0, fetch: request => new URL(request.url).pathname === "/api/providers" ? Response.json({ connections: providers.map(p => ({ id: p.connectionId, email: `${p.connectionId}@example.test` })) }) : Response.json({ allowed: true, providers }) })
-  const previousKey = process.env.OMNIROUTE_API_KEY
-  process.env.OMNIROUTE_API_KEY = "test"
-  let sidebar: (input: { name: string }) => unknown = () => null
-  const context = { options: { baseUrl: server.url.href }, theme: { background: { base: "#101010" }, text: { base: "#ffffff", muted: "#777777", action: { primary: { base: "#ff8800" } } } }, ui: { slot: (slot: { append: string, render: typeof sidebar }) => { if (slot.append === "sidebar.content") sidebar = slot.render; return () => {} } }, keymap: { layer: () => {} } } as unknown as Parameters<typeof plugin.setup>[0]
+  const restoreKey = setTestApiKey()
+  const { context, slots } = renderContext(server.url.href)
   const stop = await plugin.setup(context)
   try {
     await Bun.sleep(50)
@@ -209,7 +194,7 @@ test("sidebar left-aligns numbered accounts under full-width provider rules", as
         container = new BoxRenderable(renderer, { width: "100%", height: "100%" })
         scroll = new ScrollBoxRenderable(renderer, { width: "100%", height: "100%", scrollX: false })
         container.add(scroll)
-        insert(scroll, () => sidebar({ name: "" }) as never)
+        insert(scroll, () => slots["sidebar.content"]({ name: "" }) as never)
         return container as never
       }, { width, height: 18 })
       try {
@@ -273,16 +258,14 @@ test("sidebar left-aligns numbered accounts under full-width provider rules", as
   } finally {
     if (typeof stop === "function") stop()
     server.stop()
-    if (previousKey === undefined) delete process.env.OMNIROUTE_API_KEY
-    else process.env.OMNIROUTE_API_KEY = previousKey
+    restoreKey()
+    await file.delete()
   }
 })
 
 test("style options render real sidebar and details at both widths", async () => {
-  const result = await Bun.build({ entrypoints: ["src/tui.tsx"], target: "bun", external: ["@opencode/plugin/tui", "@opentui/solid", "solid-js"], plugins: [createSolidTransformPlugin()] })
-  const file = Bun.file(`${import.meta.dir}/../dist/render-styles-test.js`)
-  await Bun.write(file, result.outputs[0])
-  const plugin: Plugin.Definition = (await import(new URL("../dist/render-styles-test.js", import.meta.url).href)).default
+  const { file, url } = await buildRenderPlugin("render-styles-test")
+  const plugin: Plugin.Definition = (await import(url)).default
   const providers = [
     { connectionId: "longaccountnameexample", provider: "codex", quotas: { weekly: { windowSeconds: 604800, used: 20, total: 100, remainingPercentage: 80 } } },
     { connectionId: "b", provider: "codex", quotas: { session: { windowSeconds: 18000 }, weekly: { windowSeconds: 604800, unlimited: true } } },
@@ -293,18 +276,15 @@ test("style options render real sidebar and details at both widths", async () =>
     ...Array.from({ length: 10 }, (_, i) => ({ connectionId: `number${i}`, provider: "numbers", quotas: { weekly: { windowSeconds: 604800, remainingPercentage: 50 } } })),
   ]
   const server = Bun.serve({ port: 0, fetch: request => new URL(request.url).pathname === "/api/providers" ? Response.json({ connections: providers.map(p => ({ id: p.connectionId, email: `${p.connectionId}@example.test` })) }) : Response.json({ allowed: true, providers }) })
-  const previousKey = process.env.OMNIROUTE_API_KEY
-  process.env.OMNIROUTE_API_KEY = "test"
+  const restoreKey = setTestApiKey()
   try {
     for (const style of [undefined, "bar-style", "percents-only-style", "invalid"]) {
-      let sidebar: (input: { name: string }) => unknown = () => null
-      let panel: (input: { name: string }) => unknown = () => null
-      const context = { options: { baseUrl: server.url.href, style }, theme: { background: { base: "#101010" }, text: { base: "#ffffff", muted: "#777777", action: { primary: { base: "#ff8800" } } } }, ui: { slot: (slot: { append?: string, replace?: string, render: typeof sidebar }) => { if (slot.append === "sidebar.content") sidebar = slot.render; if (slot.append === "session.panel") panel = slot.render; return () => {} } }, keymap: { layer: () => {} } } as unknown as Parameters<typeof plugin.setup>[0]
+      const { context, slots } = renderContext(server.url.href, style)
       const stop = await plugin.setup(context)
       try {
         await Bun.sleep(50)
         for (const width of [32, 70]) {
-          const view = await testRender(() => sidebar({ name: "" }) as never, { width, height: 70 })
+          const view = await testRender(() => slots["sidebar.content"]({ name: "" }) as never, { width, height: 70 })
           try {
             await view.renderOnce()
             await view.renderOnce()
@@ -372,7 +352,7 @@ test("style options render real sidebar and details at both widths", async () =>
             expect(view.captureCharFrame()).toMatch(/▼ ⚙️ Quota · Updated \d\d:\d\d:\d\d/)
           } finally { await view.dispose() }
         }
-        const detail = await testRender(() => panel({ name: "omni-quota" }) as never, { width: 70, height: 35 })
+        const detail = await testRender(() => slots["session.panel"]({ name: "omni-quota" }) as never, { width: 70, height: 35 })
         try {
           await detail.renderOnce()
           await detail.renderOnce()
@@ -384,19 +364,15 @@ test("style options render real sidebar and details at both widths", async () =>
     }
   } finally {
     server.stop(true)
-    if (previousKey === undefined) delete process.env.OMNIROUTE_API_KEY
-    else process.env.OMNIROUTE_API_KEY = previousKey
+    restoreKey()
     await file.delete()
   }
 })
 
 test("collapsed summary uses only the first displayed provider", async () => {
-  const result = await Bun.build({ entrypoints: ["src/tui.tsx"], target: "bun", external: ["@opencode/plugin/tui", "@opentui/solid", "solid-js"], plugins: [createSolidTransformPlugin()] })
-  const file = Bun.file(`${import.meta.dir}/../dist/render-first-provider-test.js`)
-  await Bun.write(file, result.outputs[0])
-  const plugin: Plugin.Definition = (await import(new URL("../dist/render-first-provider-test.js", import.meta.url).href)).default
-  const previousKey = process.env.OMNIROUTE_API_KEY
-  process.env.OMNIROUTE_API_KEY = "test"
+  const { file, url } = await buildRenderPlugin("render-first-provider-test")
+  const plugin: Plugin.Definition = (await import(url)).default
+  const restoreKey = setTestApiKey()
   try {
     for (const [firstQuotas, expected] of [[{ session: { windowSeconds: 18000, used: 75, total: 100, remainingPercentage: 90 } }, "▶ ⚙️ · FIRST · 25% · —"], [{ weekly: { windowSeconds: 604800, used: 5, total: 100 } }, "▶ ⚙️ · FIRST · — · 95%"], [{ other: { remainingPercentage: 25 }, weekly: { windowSeconds: 604800, unlimited: true }, session: { windowSeconds: 18000, remaining: 25, total: 100 } }, "▶ ⚙️ · FIRST · — · —"]] as const) {
       const providers = [
@@ -406,14 +382,14 @@ test("collapsed summary uses only the first displayed provider", async () => {
         { connectionId: "zzz", provider: "fourth", quotas: {} },
       ]
       const server = Bun.serve({ port: 0, fetch: request => new URL(request.url).pathname === "/api/providers" ? Response.json({ connections: [] }) : Response.json({ allowed: true, providers }) })
+      try {
       for (const style of ["bar-style", "percents-only-style"]) {
-      let sidebar: (input: { name: string }) => unknown = () => null
-      const context = { options: { baseUrl: server.url.href, style }, theme: { background: { base: "#101010" }, text: { base: "#ffffff", muted: "#777777", action: { primary: { base: "#ff8800" } } } }, ui: { slot: (slot: { append?: string, render: typeof sidebar }) => { if (slot.append === "sidebar.content") sidebar = slot.render; return () => {} } }, keymap: { layer: () => {} } } as unknown as Parameters<typeof plugin.setup>[0]
+      const { context, slots } = renderContext(server.url.href, style)
       const stop = await plugin.setup(context)
       try {
         await Bun.sleep(50)
         for (const width of [32, 70]) {
-        const view = await testRender(() => sidebar({ name: "" }) as never, { width, height: 20 })
+        const view = await testRender(() => slots["sidebar.content"]({ name: "" }) as never, { width, height: 20 })
         try {
           await view.renderOnce()
           await view.mockMouse.click(2, 1)
@@ -431,11 +407,10 @@ test("collapsed summary uses only the first displayed provider", async () => {
         }
       } finally { if (typeof stop === "function") stop() }
       }
-      server.stop(true)
+      } finally { server.stop(true) }
     }
   } finally {
-    if (previousKey === undefined) delete process.env.OMNIROUTE_API_KEY
-    else process.env.OMNIROUTE_API_KEY = previousKey
+    restoreKey()
     await file.delete()
   }
 })
