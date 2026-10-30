@@ -3,10 +3,10 @@ import type { Plugin } from "@opencode/plugin/tui"
 
 type Slot = { append?: string; render: (input: { name: string }) => unknown }
 
-export function renderContext(baseUrl: string, style?: string, pinnedProvider?: string) {
+export function renderContext(baseUrl: string, style?: string, pinnedProvider?: string, startClosed?: unknown) {
   const slots: Record<string, Slot["render"]> = {}
   const context = {
-    options: { baseUrl, style, pinnedProvider },
+    options: { baseUrl, style, pinnedProvider, "start-closed": startClosed },
     theme: { background: { base: "#101010" }, text: { base: "#ffffff", muted: "#777777", action: { primary: { base: "#ff8800" } } } },
     ui: { slot: (slot: Slot) => { if (slot.append) slots[slot.append] = slot.render; return () => {} } },
     keymap: { layer: () => {} },

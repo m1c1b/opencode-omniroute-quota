@@ -282,6 +282,34 @@ test("sidebar left-aligns numbered accounts under full-width provider rules", as
   }
 })
 
+test("start-closed controls only the initial sidebar state", async () => {
+  const { file, url } = await buildRenderPlugin("render-start-closed-test")
+  const plugin: Plugin.Definition = (await import(url)).default
+  const server = Bun.serve({ port: 0, fetch: () => Response.json({ allowed: true, providers: [{ connectionId: "account", provider: "codex", quotas: { weekly: { windowSeconds: 604800, used: 20, total: 100 } } }] }) })
+  const restoreKey = setTestApiKey()
+  try {
+    for (const style of ["bar-style", "percents-only-style"]) {
+      for (const value of [undefined, false, true, "true"]) {
+        for (const width of [32, 70]) {
+          const { context, slots } = renderContext(server.url.href, style, undefined, value)
+          const stop = await plugin.setup(context)
+          try {
+            const view = await testRender(() => slots["sidebar.content"]({ name: "" }) as never, { width, height: 30 })
+            try {
+              await waitFor(async () => { await view.renderOnce(); return view.captureCharFrame().includes(value === true ? "▶ ⚙️" : "▼ ⚙️") }, "initial sidebar")
+              if (value === true) {
+                await view.mockMouse.click(2, 1)
+                await waitFor(async () => { await view.renderOnce(); return view.captureCharFrame().includes("▼ ⚙️") }, "expanded sidebar")
+              }
+              expect(view.captureCharFrame().split("\n").every(line => line.length <= width)).toBe(true)
+            } finally { view.renderer.destroy() }
+          } finally { if (typeof stop === "function") stop() }
+        }
+      }
+    }
+  } finally { restoreKey(); server.stop(true); await file.delete() }
+})
+
 test("style options render real sidebar and details at both widths", async () => {
   const { file, url } = await buildRenderPlugin("render-styles-test")
   const plugin: Plugin.Definition = (await import(url)).default

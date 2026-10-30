@@ -46,7 +46,7 @@ export default Plugin.define({
   setup(ctx) {
     const percentsOnly = ctx.options.style === "percents-only-style"
     const [state, setState] = createSignal(initial)
-    const [expanded, setExpanded] = createSignal(true)
+    const [expanded, setExpanded] = createSignal(ctx.options["start-closed"] !== true)
     const [sidebarWidth, setSidebarWidth] = createSignal(32)
     const groups = () => groupAccounts(state().accounts ?? [], typeof ctx.options.pinnedProvider === "string" ? ctx.options.pinnedProvider : undefined)
     const summaries = () => groups().slice(0, 1).map(group => {
