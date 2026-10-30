@@ -49,4 +49,4 @@ jobs:
             });
           '
       - name: Publish verified archive
-        run: npm publish package/*.tgz --access public --provenance --tag latest --registry=https://registry.npmjs.org
+        run: npm publish ./package/*.tgz --access public --provenance --tag latest --registry=https://registry.npmjs.org
