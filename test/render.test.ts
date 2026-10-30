@@ -298,7 +298,7 @@ test("start-closed controls only the initial sidebar state", async () => {
             try {
               await waitFor(async () => { await view.renderOnce(); return view.captureCharFrame().includes(value === true ? "▶ ⚙️" : "▼ ⚙️") }, "initial sidebar")
               if (value === true) {
-                await view.mockMouse.click(2, 1)
+                await view.mockMouse.click(2, 0)
                 await waitFor(async () => { await view.renderOnce(); return view.captureCharFrame().includes("▼ ⚙️") }, "expanded sidebar")
               }
               expect(view.captureCharFrame().split("\n").every(line => line.length <= width)).toBe(true)
@@ -377,7 +377,7 @@ test("style options render real sidebar and details at both widths", async () =>
               expect(color("80%")).toBe(RGBA.fromHex("#ffffff").toString())
               expect(color("█")).toBe(RGBA.fromHex("#ffffff").toString())
             }
-            await view.mockMouse.click(2, 1)
+            await view.mockMouse.click(2, 0)
             await view.renderOnce()
             const collapsed = view.captureCharFrame()
             expect(collapsed.split("\n").find(line => line.includes("⚙️"))!.trim()).toBe("▶ ⚙️ · CODEX · 0% · 80%")
@@ -394,7 +394,7 @@ test("style options render real sidebar and details at both widths", async () =>
             const walk = (node: Renderable): Renderable[] => [node, ...node.getChildren().flatMap(walk)]
             for (const node of walk(view.renderer.root)) expect(node.x + node.width).toBeLessThanOrEqual(width)
             expect(collapsed).not.toContain("/omni-quota")
-            await view.mockMouse.click(2, 1)
+            await view.mockMouse.click(2, 0)
             await view.renderOnce()
             expect(view.captureCharFrame()).toMatch(/▼ ⚙️ Quota · Updated \d\d:\d\d:\d\d/)
           } finally { await view.dispose() }
@@ -439,7 +439,7 @@ test("collapsed summary uses only the first displayed provider", async () => {
         try {
           await waitFor(async () => { await view.renderOnce(); return view.captureCharFrame().includes("SECOND") }, "first provider quota data")
           await view.renderOnce()
-          await view.mockMouse.click(2, 1)
+          await view.mockMouse.click(2, 0)
           await view.renderOnce()
           const frame = view.captureCharFrame()
           expect(frame.split("\n").find(line => line.includes("⚙️"))!.trim()).toBe("▶ ⚙️ · SECOND · 90% · 80%")
@@ -448,7 +448,7 @@ test("collapsed summary uses only the first displayed provider", async () => {
           expect(frame).not.toContain("FOURTH")
           const walk = (node: Renderable): Renderable[] => [node, ...node.getChildren().flatMap(walk)]
           for (const node of walk(view.renderer.root)) expect(node.x + node.width).toBeLessThanOrEqual(width)
-          await view.mockMouse.click(2, 1)
+          await view.mockMouse.click(2, 0)
           await view.renderOnce()
         } finally { await view.dispose() }
         }
@@ -484,12 +484,12 @@ test("pinned provider appears first and supplies the collapsed summary", async (
             const expanded = view.captureCharFrame()
             expect(expanded.indexOf("CLAUDE")).toBeLessThan(expanded.indexOf("CODEX"))
             expect(expanded.indexOf("CODEX")).toBeLessThan(expanded.indexOf("AGY"))
-            await view.mockMouse.click(2, 1)
+            await view.mockMouse.click(2, 0)
             await view.renderOnce()
             expect(view.captureCharFrame().split("\n").find(line => line.includes("⚙️"))!.trim()).toBe("▶ ⚙️ · CLAUDE · — · 75%")
             const walk = (node: Renderable): Renderable[] => [node, ...node.getChildren().flatMap(walk)]
             for (const node of walk(view.renderer.root)) expect(node.x + node.width).toBeLessThanOrEqual(width)
-            await view.mockMouse.click(2, 1)
+            await view.mockMouse.click(2, 0)
           } finally { await view.dispose() }
         }
         const detail = await testRender(() => slots["session.panel"]({ name: "omni-quota" }) as never, { width: 70, height: 30 })

@@ -1,6 +1,6 @@
 {
   "name": "opencode-omniroute-quota",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "OpenCode TUI plugin for viewing OmniRoute account quotas",
   "keywords": ["opencode", "opencode-plugin", "omniroute", "quota", "tui"],
   "author": "m1c1b <49164999+m1c1b@users.noreply.github.com>",
